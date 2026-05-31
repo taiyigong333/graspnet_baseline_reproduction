@@ -211,7 +211,7 @@ def _execute_motion_sequence(
             tcp_pregrasp,
             config.motion.open_gripper,
             waits["move-pregrasp"],
-            label="move-pregrasp",
+            label="pregrasp",
         )
     if "grasp" in steps:
         set_target_and_wait(
@@ -219,7 +219,7 @@ def _execute_motion_sequence(
             tcp_goal,
             config.motion.open_gripper,
             waits["move-grasp"],
-            label="move-grasp",
+            label="grasp",
         )
     if "close" in steps:
         set_target_and_wait(
@@ -227,5 +227,5 @@ def _execute_motion_sequence(
             tcp_goal,
             config.motion.close_gripper,
             waits["close-gripper"],
-            label="close-gripper",
+            label="close",
         )

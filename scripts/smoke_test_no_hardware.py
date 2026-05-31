@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import io
+from contextlib import redirect_stdout
 from dataclasses import replace
 import json
 import re
@@ -19,9 +21,9 @@ if str(SRC_ROOT) not in sys.path:
 from eye_in_hand_graspnet.config import _strip_jsonc_comments, load_T_tcp_cam, load_config
 from eye_in_hand_graspnet.graspnet_client import GraspNetHttpClient
 from eye_in_hand_graspnet.mask import apply_color_mask, center_rect_bounds, make_center_mask
-from eye_in_hand_graspnet.pipeline import _validate_execute_config
+from eye_in_hand_graspnet.pipeline import _execute_motion_sequence, _validate_execute_config
 from eye_in_hand_graspnet.preview import build_projected_gripper_segments, project_camera_point_to_pixel
-from eye_in_hand_graspnet.robot import XMLRPCTargetBridge
+from eye_in_hand_graspnet.robot import XMLRPCTargetBridge, maybe_set_start_target
 from eye_in_hand_graspnet.transforms import BestGrasp, compute_tcp_target, parse_best_grasp, pose_to_matrix
 from eye_in_hand_graspnet.array_codec import decode_npy
 
@@ -193,6 +195,39 @@ def main() -> int:
         bridge.stop()
     np.testing.assert_allclose(actual_target, expected_target, atol=1e-9)
     assert bridge.request_count() == 1
+
+    fast_motion = replace(
+        config.motion,
+        enabled_steps=["start", "open-current", "pregrasp", "grasp", "close"],
+        settle_s_after_start=0.0,
+        motion_wait_s=0.0,
+        motion_waits_s={
+            "start": 0.0,
+            "open-current": 0.0,
+            "move-pregrasp": 0.0,
+            "move-grasp": 0.0,
+            "close-gripper": 0.0,
+        },
+    )
+    fast_config = replace(config, motion=fast_motion)
+    state_bridge = XMLRPCTargetBridge("127.0.0.1", 0)
+    stdout = io.StringIO()
+    with redirect_stdout(stdout):
+        maybe_set_start_target(state_bridge, fast_config.motion)
+        _execute_motion_sequence(
+            state_bridge,
+            fast_config,
+            current_tcp=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            tcp_pregrasp=[0.1, 0.0, 0.2, 0.0, 0.0, 0.0],
+            tcp_goal=[0.1, 0.0, 0.1, 0.0, 0.0, 0.0],
+        )
+    motion_log = stdout.getvalue()
+    for state in ("start", "open-current", "pregrasp", "grasp", "close"):
+        marker = f"[motion-state] {state}"
+        motion_line = f"[motion] {state}:"
+        assert marker in motion_log
+        assert motion_line in motion_log
+        assert motion_log.index(marker) < motion_log.index(motion_line)
 
     _validate_execute_config(config, execute=True)
     missing_start_config = replace(config, motion=replace(config.motion, fixed_start_tcp=None))

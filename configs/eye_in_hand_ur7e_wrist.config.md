@@ -295,7 +295,7 @@ tcp_pregrasp_translation =
 | 字段 | 类型 | 当前值 | 含义与配置方法 |
 | --- | --- | --- | --- |
 | `fixed_start_tcp` | 长度 6 list 或 `null` | `[-0.245099380, -0.254530307, 0.482963999, -0.121633424, -0.947709943, 0.506871697]` | 固定观察位 `[x,y,z,rx,ry,rz]`。前三项米，后三项弧度旋转向量。`enabled_steps` 包含 `start` 且 `--execute` 时必须非空。 |
-| `enabled_steps` | `list[str]` | `["start", "open-current", "pregrasp", "grasp"]` | 实机执行步骤。允许值：`start`、`open-current`、`pregrasp`、`grasp`、`close`。 |
+| `enabled_steps` | `list[str]` | `["start", "open-current", "pregrasp", "grasp", "close"]` | 实机执行步骤。允许值：`start`、`open-current`、`pregrasp`、`grasp`、`close`。 |
 
 各步骤含义：
 
@@ -306,6 +306,14 @@ tcp_pregrasp_translation =
 | `pregrasp` | 把目标设置为 `tcp_pregrasp`，夹爪值为 `open_gripper`。 |
 | `grasp` | 把目标设置为 `tcp_goal`，夹爪值仍为 `open_gripper`。 |
 | `close` | 把目标保持在 `tcp_goal`，夹爪值改为 `close_gripper`。 |
+
+每个启用步骤在真正下发目标之前都会先打印：
+
+```text
+[motion-state] <step>
+```
+
+其中 `<step>` 使用 `enabled_steps` 里的状态名，例如 `start`、`open-current`、`pregrasp`、`grasp`、`close`。
 
 首次实机建议：
 

@@ -145,17 +145,17 @@ target.pregrasp_offset_base
 
 这两条只限制实机执行，`--dry-run` 仍可用于排查和打印分量。
 
-### 3. 主配置恢复低风险默认
+### 3. 当前主配置与安全建议
 
-`configs/eye_in_hand_ur7e_wrist.jsonc` 已恢复为：
+`configs/eye_in_hand_ur7e_wrist.jsonc` 当前为：
 
 ```json
 "tcp_rotation_mode": "current"
 "target_base_offset_m": [0.0, 0.0, 0.0]
-"enabled_steps": ["start", "open-current", "pregrasp", "grasp"]
+"enabled_steps": ["start", "open-current", "pregrasp", "grasp", "close"]
 ```
 
-这样默认先验证位置链路和预抓取退让方向，不直接把 GraspNet 姿态下发到最终抓取点。
+这样运行完整流程时会按状态顺序执行并打印状态名。首次实机仍建议临时把 `enabled_steps` 缩小到 `start` 或 `pregrasp`，确认位置链路和预抓取退让方向后再恢复完整步骤。
 
 ### 4. smoke test 增加回归用例
 

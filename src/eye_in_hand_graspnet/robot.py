@@ -217,6 +217,7 @@ def set_target_and_wait(
     label: str,
 ) -> None:
     pose = as_pose6(tcp_pose, label)
+    print(f"[motion-state] {label}")
     print(f"[motion] {label}: tcp={format_pose(pose)}, gripper={float(gripper):.3f}, wait_s={wait_s:.1f}")
     bridge.set_target(pose, float(gripper))
     time.sleep(max(0.0, float(wait_s)))

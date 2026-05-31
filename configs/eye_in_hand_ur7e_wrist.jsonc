@@ -80,7 +80,7 @@
     "require_xmlrpc_polling": true, // 可选项：true/false；说明：true 表示要求示教器确实访问过 PC 的 get_target()，建议保持 true。
     "xmlrpc_poll_check_s": 2.0, // 可选项：非负秒数；说明：检查示教器是否轮询 get_target() 时等待的时间。
     "fixed_start_tcp": [-0.245099380, -0.254530307, 0.482963999, -0.121633424, -0.947709943, 0.506871697], // 可选项：长度 6 的 [x,y,z,rx,ry,rz] 或 null；说明：固定观察位，前三项米、后三项弧度；enabled_steps 包含 start 时必须现场低速确认。
-    "enabled_steps": ["start", "open-current", "pregrasp", "grasp"], // 可选项：start/open-current/pregrasp/grasp/close 的列表；说明：决定实机真正执行哪些目标更新，首次建议只保留 start 或 pregrasp。
+    "enabled_steps": ["start", "open-current", "pregrasp", "grasp", "close"], // 可选项：start/open-current/pregrasp/grasp/close 的列表；说明：决定实机真正执行哪些目标更新，首次建议只保留 start 或 pregrasp。
     "settle_s_after_start": 0.5, // 可选项：非负秒数；说明：motion_waits_s 未配置 start 时的 start 默认等待时间。
     "motion_wait_s": 3.0, // 可选项：非负秒数；说明：各动作默认等待时间，被 motion_waits_s 中同名 key 覆盖。
     "motion_waits_s": { // 可选项：对象，可为空 {}；说明：按动作 label 覆盖等待时间，key 必须和代码里的 label 一致。
