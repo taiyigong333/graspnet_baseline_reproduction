@@ -43,6 +43,11 @@
   },
   "grasp": {
     "tcp_rotation_mode": "current",
+    "grasp_to_tcp_rotation_matrix": [
+      [0.0, 0.0, 1.0],
+      [1.0, 0.0, 0.0],
+      [0.0, 1.0, 0.0]
+    ],
     "tcp_rotation_offset_matrix": [
       [1.0, 0.0, 0.0],
       [0.0, 1.0, 0.0],
@@ -56,15 +61,30 @@
     "approach_sign": -1.0
   },
   "motion": {
-    "xmlrpc_url": "http://192.168.1.88:50000/RPC2",
-    "move_tcp_method": "move_tcp",
-    "move_tcp_kwargs": {
-      "acc": 0.05,
-      "vel": 0.05
+    "xmlrpc_host": "0.0.0.0",
+    "xmlrpc_port": 50000,
+    "dashboard_port": 29999,
+    "grasp_program": "aaaaaa.urp",
+    "stop_before_load": true,
+    "play_after_load": true,
+    "program_settle_s": 2.0,
+    "grasp_program_start_wait_s": 0.5,
+    "require_grasp_program_running": true,
+    "require_xmlrpc_polling": true,
+    "xmlrpc_poll_check_s": 2.0,
+    "fixed_start_tcp": [-0.245099380, -0.254530307, 0.482963999, -0.121633424, -0.947709943, 0.506871697],
+    "enabled_steps": ["start", "open-current", "pregrasp", "grasp"],
+    "settle_s_after_start": 0.5,
+    "motion_wait_s": 3.0,
+    "motion_waits_s": {
+      "start": 5.0,
+      "open-current": 2.0,
+      "move-pregrasp": 5.0,
+      "move-grasp": 5.0,
+      "close-gripper": 5.0
     },
-    "fixed_start_tcp": null,
-    "enabled_steps": ["start", "pregrasp", "grasp"],
-    "settle_s_after_start": 0.5
+    "open_gripper": 100.0,
+    "close_gripper": 0.0
   },
   "preview": {
     "enabled": true,

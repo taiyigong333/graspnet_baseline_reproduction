@@ -61,6 +61,13 @@ class GraspNetConfig:
 @dataclass(frozen=True)
 class GraspConfig:
     tcp_rotation_mode: str = "current"
+    grasp_to_tcp_rotation_matrix: list[list[float]] = field(
+        default_factory=lambda: [
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]
+    )
     tcp_rotation_offset_matrix: list[list[float]] = field(
         default_factory=lambda: [
             [1.0, 0.0, 0.0],
@@ -78,12 +85,24 @@ class GraspConfig:
 
 @dataclass(frozen=True)
 class MotionConfig:
-    xmlrpc_url: str
-    move_tcp_method: str = "move_tcp"
-    move_tcp_kwargs: dict[str, Any] = field(default_factory=dict)
+    xmlrpc_host: str = "0.0.0.0"
+    xmlrpc_port: int = 50000
+    dashboard_port: int = 29999
+    grasp_program: str | None = "aaaaaa.urp"
+    stop_before_load: bool = True
+    play_after_load: bool = True
+    program_settle_s: float = 2.0
+    grasp_program_start_wait_s: float = 0.5
+    require_grasp_program_running: bool = True
+    require_xmlrpc_polling: bool = True
+    xmlrpc_poll_check_s: float = 2.0
     fixed_start_tcp: list[float] | None = None
     enabled_steps: list[str] = field(default_factory=lambda: ["start", "pregrasp", "grasp"])
     settle_s_after_start: float = 0.5
+    motion_wait_s: float = 3.0
+    motion_waits_s: dict[str, float] = field(default_factory=dict)
+    open_gripper: float = 100.0
+    close_gripper: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -143,7 +162,7 @@ def load_config(path: str | Path) -> AppConfig:
         robot=RobotConfig(**data["robot"]),
         graspnet=GraspNetConfig(**data["graspnet"]),
         grasp=GraspConfig(**data.get("grasp", {})),
-        motion=MotionConfig(**data["motion"]),
+        motion=_load_motion_config(data["motion"]),
         preview=PreviewConfig(
             enabled=bool(preview_data.get("enabled", True)),
             window_name=str(preview_data.get("window_name", "wrist GraspNet preview")),
@@ -165,6 +184,18 @@ def load_T_tcp_cam(config: CalibrationConfig) -> list[list[float]]:
     if matrix is None:
         raise KeyError(f"标定文件 {config.path} 缺少矩阵字段: {config.matrix_key}")
     return matrix
+
+
+def _load_motion_config(data: dict[str, Any]) -> MotionConfig:
+    legacy_keys = {"xmlrpc_url", "move_tcp_method", "move_tcp_kwargs"} & set(data)
+    if legacy_keys:
+        joined = ", ".join(sorted(legacy_keys))
+        raise ValueError(
+            f"motion 中仍包含旧的远端 move_tcp XML-RPC 字段: {joined}。"
+            "本工程现在与 graspnet-baseline-in-ur7e 一致：Windows 侧启动 get_target() 服务，"
+            "示教器 URP 轮询该服务，并由 Dashboard 负责 load/play。"
+        )
+    return MotionConfig(**data)
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:

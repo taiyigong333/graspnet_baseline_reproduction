@@ -7,6 +7,13 @@ from typing import Any
 import numpy as np
 
 
+DEFAULT_GRASPNET_TO_UR_TCP_ROTATION = [
+    [0.0, 0.0, 1.0],
+    [1.0, 0.0, 0.0],
+    [0.0, 1.0, 0.0],
+]
+
+
 @dataclass(frozen=True)
 class BestGrasp:
     score: float | None
@@ -28,6 +35,7 @@ class TcpTargetResult:
     tcp_goal: list[float]
     tcp_pregrasp: list[float]
     R_base_grasp: np.ndarray
+    R_base_grasp_as_tcp: np.ndarray
     R_base_tcp_goal: np.ndarray
 
     def to_json_dict(self) -> dict[str, Any]:
@@ -36,6 +44,9 @@ class TcpTargetResult:
             "T_base_cam_now": self.T_base_cam_now.tolist(),
             "T_base_grasp": self.T_base_grasp.tolist(),
             "grasp_center_base": self.grasp_center_base.tolist(),
+            "R_base_grasp": self.R_base_grasp.tolist(),
+            "R_base_grasp_as_tcp": self.R_base_grasp_as_tcp.tolist(),
+            "R_base_tcp_goal": self.R_base_tcp_goal.tolist(),
             "tcp_pregrasp": self.tcp_pregrasp,
             "tcp_goal": self.tcp_goal,
         }
@@ -143,6 +154,18 @@ def make_transform(rotation: Any, translation: Any) -> np.ndarray:
     return T
 
 
+def as_rotation_matrix(values: Any, name: str = "rotation") -> np.ndarray:
+    R = np.asarray(values, dtype=float)
+    if R.shape != (3, 3):
+        raise ValueError(f"{name} 应为 3x3 旋转矩阵，实际 shape={R.shape}")
+    if not np.allclose(R.T @ R, np.eye(3), atol=1e-6):
+        raise ValueError(f"{name} 不是正交旋转矩阵")
+    det = float(np.linalg.det(R))
+    if abs(det - 1.0) > 1e-6:
+        raise ValueError(f"{name} 行列式应接近 1，实际 det={det}")
+    return R
+
+
 def normalize(vector: np.ndarray, name: str) -> np.ndarray:
     norm = float(np.linalg.norm(vector))
     if norm < 1e-12:
@@ -209,6 +232,7 @@ def compute_tcp_target(
     pregrasp_offset_m: float,
     approach_axis_index: int,
     approach_sign: float,
+    grasp_to_tcp_rotation_matrix: Any = DEFAULT_GRASPNET_TO_UR_TCP_ROTATION,
 ) -> TcpTargetResult:
     T_tcp_cam_m = as_matrix4(T_tcp_cam, "T_tcp_cam")
     T_base_tcp_now = pose_to_matrix(current_tcp_pose)
@@ -218,10 +242,17 @@ def compute_tcp_target(
     T_base_grasp = T_base_cam_now @ T_cam_grasp
     grasp_center_base = T_base_grasp[:3, 3].copy()
     R_base_grasp = T_base_grasp[:3, :3]
+    grasp_to_tcp_rotation = as_rotation_matrix(
+        grasp_to_tcp_rotation_matrix,
+        "grasp_to_tcp_rotation_matrix",
+    )
+    # GraspNet 的局部 X/Y/Z 是接近/开合/高度；UR TCP 的 X/Y/Z 是开合/高度/接近。
+    # 这里先把 GraspNet 抓取姿态重解释成 UR TCP 姿态，再进入后续 TCP 目标计算。
+    R_base_grasp_as_tcp = R_base_grasp @ grasp_to_tcp_rotation
 
     R_base_tcp_goal = resolve_tcp_rotation(
         mode=tcp_rotation_mode,
-        R_base_grasp=R_base_grasp,
+        R_base_grasp_as_tcp=R_base_grasp_as_tcp,
         R_base_tcp_now=T_base_tcp_now[:3, :3],
         tcp_rotation_offset_matrix=tcp_rotation_offset_matrix,
         fixed_tcp_rotvec=fixed_tcp_rotvec,
@@ -248,6 +279,7 @@ def compute_tcp_target(
         tcp_goal=tcp_goal,
         tcp_pregrasp=tcp_pregrasp,
         R_base_grasp=R_base_grasp,
+        R_base_grasp_as_tcp=R_base_grasp_as_tcp,
         R_base_tcp_goal=R_base_tcp_goal,
     )
 
@@ -255,14 +287,14 @@ def compute_tcp_target(
 def resolve_tcp_rotation(
     *,
     mode: str,
-    R_base_grasp: np.ndarray,
+    R_base_grasp_as_tcp: np.ndarray,
     R_base_tcp_now: np.ndarray,
     tcp_rotation_offset_matrix: Any,
     fixed_tcp_rotvec: Any,
 ) -> np.ndarray:
     mode_l = str(mode).lower()
     if mode_l == "graspnet":
-        return R_base_grasp @ np.asarray(tcp_rotation_offset_matrix, dtype=float)
+        return R_base_grasp_as_tcp @ as_rotation_matrix(tcp_rotation_offset_matrix, "tcp_rotation_offset_matrix")
     if mode_l == "fixed":
         return rotvec_to_matrix(fixed_tcp_rotvec)
     if mode_l == "current":

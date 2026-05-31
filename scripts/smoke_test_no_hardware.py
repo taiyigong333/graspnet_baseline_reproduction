@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from dataclasses import replace
+import re
 import sys
+import urllib.request
 from pathlib import Path
 
 import numpy as np
@@ -17,8 +20,25 @@ from eye_in_hand_graspnet.graspnet_client import GraspNetHttpClient
 from eye_in_hand_graspnet.mask import apply_color_mask, center_rect_bounds, make_center_mask
 from eye_in_hand_graspnet.pipeline import _validate_execute_config
 from eye_in_hand_graspnet.preview import build_projected_gripper_segments, project_camera_point_to_pixel
+from eye_in_hand_graspnet.robot import XMLRPCTargetBridge
 from eye_in_hand_graspnet.transforms import BestGrasp, compute_tcp_target, parse_best_grasp, pose_to_matrix
 from eye_in_hand_graspnet.array_codec import decode_npy
+
+
+def call_get_target(url: str) -> list[float]:
+    request_body = (
+        "<?xml version='1.0'?>"
+        "<methodCall><methodName>get_target</methodName><params/></methodCall>"
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=request_body,
+        headers={"Content-Type": "text/xml"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        body = response.read().decode("utf-8")
+    return [float(value) for value in re.findall(r"<double>(.*?)</double>", body)]
 
 
 def main() -> int:
@@ -62,6 +82,7 @@ def main() -> int:
         current_tcp_pose=current_tcp,
         best_grasp=best_grasp,
         tcp_rotation_mode="current",
+        grasp_to_tcp_rotation_matrix=config.grasp.grasp_to_tcp_rotation_matrix,
         tcp_rotation_offset_matrix=np.eye(3),
         fixed_tcp_rotvec=[0.0, 0.0, 0.0],
         tcp_translation_offset_m=[0.0, 0.0, 0.0],
@@ -72,8 +93,36 @@ def main() -> int:
     )
     expected_center = (pose_to_matrix(current_tcp) @ np.asarray(T_tcp_cam) @ np.r_[best_grasp.translation, 1.0])[:3]
     np.testing.assert_allclose(result.grasp_center_base, expected_center, atol=1e-9)
+    grasp_to_tcp = np.asarray(config.grasp.grasp_to_tcp_rotation_matrix, dtype=float)
+    np.testing.assert_allclose(
+        grasp_to_tcp,
+        np.asarray([[0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]),
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(grasp_to_tcp.T @ grasp_to_tcp, np.eye(3), atol=1e-12)
+    assert abs(float(np.linalg.det(grasp_to_tcp)) - 1.0) < 1e-12
+    np.testing.assert_allclose(result.R_base_grasp_as_tcp, result.R_base_grasp @ grasp_to_tcp, atol=1e-12)
+    np.testing.assert_allclose(result.R_base_tcp_goal, result.T_base_tcp_now[:3, :3], atol=1e-12)
     assert len(result.tcp_goal) == 6
     assert len(result.tcp_pregrasp) == 6
+
+    graspnet_rotation_result = compute_tcp_target(
+        T_tcp_cam=np.eye(4),
+        current_tcp_pose=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        best_grasp=best_grasp,
+        tcp_rotation_mode="graspnet",
+        grasp_to_tcp_rotation_matrix=config.grasp.grasp_to_tcp_rotation_matrix,
+        tcp_rotation_offset_matrix=np.eye(3),
+        fixed_tcp_rotvec=[0.0, 0.0, 0.0],
+        tcp_translation_offset_m=[0.0, 0.0, 0.0],
+        target_base_offset_m=[0.0, 0.0, 0.0],
+        pregrasp_offset_m=0.08,
+        approach_axis_index=0,
+        approach_sign=-1.0,
+    )
+    np.testing.assert_allclose(graspnet_rotation_result.R_base_tcp_goal[:, 0], [0.0, 1.0, 0.0], atol=1e-12)
+    np.testing.assert_allclose(graspnet_rotation_result.R_base_tcp_goal[:, 1], [0.0, 0.0, 1.0], atol=1e-12)
+    np.testing.assert_allclose(graspnet_rotation_result.R_base_tcp_goal[:, 2], [1.0, 0.0, 0.0], atol=1e-12)
     intrinsic = np.array([[500.0, 0.0, 320.0], [0.0, 500.0, 240.0], [0.0, 0.0, 1.0]])
     assert project_camera_point_to_pixel(np.array([0.0, 0.0, 1.0]), intrinsic) == (320, 240)
     segments = build_projected_gripper_segments(best_grasp, intrinsic)
@@ -105,14 +154,27 @@ def main() -> int:
     np.testing.assert_allclose(parsed.rotation_matrix, np.eye(3), atol=1e-12)
     np.testing.assert_allclose(parsed.translation, best_grasp.translation, atol=1e-12)
 
+    expected_target = [0.31, -0.02, 0.18, 0.1, 0.2, -0.3, config.motion.open_gripper]
+    bridge = XMLRPCTargetBridge("127.0.0.1", 0)
+    bridge.set_target(expected_target[:6], expected_target[6])
+    bridge.start()
     try:
-        _validate_execute_config(config, execute=True)
+        actual_target = call_get_target(f"http://127.0.0.1:{bridge.port}/RPC2")
+    finally:
+        bridge.stop()
+    np.testing.assert_allclose(actual_target, expected_target, atol=1e-9)
+    assert bridge.request_count() == 1
+
+    _validate_execute_config(config, execute=True)
+    missing_start_config = replace(config, motion=replace(config.motion, fixed_start_tcp=None))
+    try:
+        _validate_execute_config(missing_start_config, execute=True)
     except ValueError as exc:
         assert "motion.fixed_start_tcp" in str(exc)
     else:
-        raise AssertionError("--execute 必须在 fixed_start_tcp 为空时拒绝运行")
+        raise AssertionError("--execute 必须在 start 步骤缺少 fixed_start_tcp 时拒绝运行")
 
-    print("[smoke] 配置、中心掩码、GraspNet 输出解析和 eye-in-hand TCP 目标计算通过。")
+    print("[smoke] 配置、中心掩码、GraspNet 输出解析、eye-in-hand TCP 目标计算和 XML-RPC get_target 通过。")
     return 0
 
 

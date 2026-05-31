@@ -81,6 +81,44 @@ grasp_center_base = T_base_grasp[:3, 3]
 R_base_grasp      = T_base_grasp[:3, :3]
 ```
 
+这里的 `R_base_grasp` 仍然保留 GraspNet 的局部轴定义：
+
+```text
+GraspNet X = 接近/depth 方向
+GraspNet Y = 两指开合/width 方向
+GraspNet Z = 夹爪高度/height 方向
+```
+
+而 UR7e 夹爪 TCP 的现场约定是：
+
+```text
+UR TCP X = 平行夹爪开合方向
+UR TCP Y = 垂直夹爪开合方向
+UR TCP Z = 垂直法兰面/接近方向
+```
+
+因此代码会先做一次局部轴重排：
+
+```text
+R_base_grasp_as_tcp = R_base_grasp @ grasp_to_tcp_rotation_matrix
+
+grasp_to_tcp_rotation_matrix = [
+  [0, 0, 1],
+  [1, 0, 0],
+  [0, 1, 0],
+]
+```
+
+等价关系是：
+
+```text
+UR TCP X = GraspNet Y
+UR TCP Y = GraspNet Z
+UR TCP Z = GraspNet X
+```
+
+注意：`best_grasp.translation` 是相机坐标系下的三维位置点，不做这种 xyz 重排；它只通过 `T_base_cam_now` 转到机器人 base。轴重排只用于姿态矩阵和按 TCP 坐标系表达的偏移。
+
 ## 从抓取中心到 TCP 目标
 
 机器人执行的是 TCP 目标，不是 GraspNet 抓取中心。代码中使用：
@@ -98,7 +136,7 @@ t_base_tcp_goal =
 | --- | --- |
 | `current` | 保持当前 TCP 姿态，适合第一轮验证位置链路 |
 | `fixed` | 使用 `fixed_tcp_rotvec` 指定的固定姿态 |
-| `graspnet` | 使用 GraspNet 姿态并右乘 `tcp_rotation_offset_matrix` |
+| `graspnet` | 使用 `R_base_grasp_as_tcp`，再右乘 `tcp_rotation_offset_matrix` |
 
 最终输出：
 

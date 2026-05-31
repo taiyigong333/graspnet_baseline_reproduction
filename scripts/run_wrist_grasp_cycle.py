@@ -23,8 +23,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="配置文件路径，默认 configs/eye_in_hand_ur7e_wrist.json",
     )
     action = parser.add_mutually_exclusive_group()
-    action.add_argument("--dry-run", action="store_true", help="只计算和打印目标点，不发送 XML-RPC 移动命令。")
-    action.add_argument("--execute", action="store_true", help="发送 XML-RPC 移动命令，实机前必须确认配置和目标点。")
+    action.add_argument("--dry-run", action="store_true", help="只计算和打印目标点，不启动示教器 URP。")
+    action.add_argument(
+        "--execute",
+        action="store_true",
+        help="启动 PC 侧 get_target 服务，并通过 Dashboard 启动示教器 URP 轮询目标。",
+    )
     return parser
 
 

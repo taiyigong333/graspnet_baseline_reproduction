@@ -1,0 +1,45 @@
+# URScript template for eye-in-hand wrist GraspNet.
+# Copy this logic into the UR teach pendant program and replace the gripper
+# placeholder with the real DH gripper command used on this robot.
+
+def apply_gripper_target(gripper_value):
+  # TODO: Replace this placeholder with the real gripper command.
+  # Convention from Windows config:
+  #   gripper_value >= 50: open
+  #   gripper_value <  50: close
+  sync()
+end
+
+def pose_distance(a, b):
+  return norm([a[0] - b[0], a[1] - b[1], a[2] - b[2]])
+end
+
+def aaaaaa_rpc_main():
+  # Replace 192.168.1.60 with the Windows PC IP.
+  # The port must match motion.xmlrpc_port in configs/eye_in_hand_ur7e_wrist.json.
+  rpc = rpc_factory("xmlrpc", "http://192.168.1.60:50000/RPC2")
+
+  last_pose = get_actual_tcp_pose()
+  last_gripper = -1
+
+  while True:
+    target = rpc.get_target()
+    target_pose = p[target[0], target[1], target[2], target[3], target[4], target[5]]
+    target_gripper = target[6]
+
+    if pose_distance(target_pose, last_pose) > 0.001:
+      # Keep conservative speed/accel for first hardware tests.
+      movel(target_pose, a=0.15, v=0.05)
+      last_pose = target_pose
+    end
+
+    if abs(target_gripper - last_gripper) > 1:
+      apply_gripper_target(target_gripper)
+      last_gripper = target_gripper
+    end
+
+    sleep(0.05)
+  end
+end
+
+aaaaaa_rpc_main()
