@@ -1,0 +1,78 @@
+{
+  "random_seed": 20260531,
+  "camera": {
+    "serial": "419122270341",
+    "color_width": 1280,
+    "color_height": 720,
+    "depth_width": 1280,
+    "depth_height": 720,
+    "fps": 30,
+    "warmup_frames": 10,
+    "timeout_ms": 3000,
+    "align_depth_to_color": true
+  },
+  "workspace_mask": {
+    "type": "center_fraction",
+    "width_fraction": 0.5,
+    "height_fraction": 0.5,
+    "masked_depth_value": 0,
+    "preview_dim_outside": true
+  },
+  "calibration": {
+    "path": "configs/eye_in_hand_calibration_tcp.json",
+    "matrix_key": "T_tcp_cam"
+  },
+  "robot": {
+    "host": "192.168.1.88",
+    "rtde_enabled": true
+  },
+  "graspnet": {
+    "url": "http://127.0.0.1:8000/infer",
+    "timeout_s": 30.0,
+    "request_format": "multipart",
+    "seed_field": "seed",
+    "color_field": "color",
+    "depth_field": "depth",
+    "mask_field": "workspace_mask",
+    "intrinsics_field": "intrinsics",
+    "factor_depth_field": "factor_depth",
+    "extra_fields": {
+      "camera_serial": "419122270341"
+    }
+  },
+  "grasp": {
+    "tcp_rotation_mode": "current",
+    "tcp_rotation_offset_matrix": [
+      [1.0, 0.0, 0.0],
+      [0.0, 1.0, 0.0],
+      [0.0, 0.0, 1.0]
+    ],
+    "fixed_tcp_rotvec": [0.0, 0.0, 0.0],
+    "tcp_translation_offset_m": [0.0, 0.0, 0.0],
+    "target_base_offset_m": [0.0, 0.0, 0.0],
+    "pregrasp_offset_m": 0.08,
+    "approach_axis_index": 0,
+    "approach_sign": -1.0
+  },
+  "motion": {
+    "xmlrpc_url": "http://192.168.1.88:50000/RPC2",
+    "move_tcp_method": "move_tcp",
+    "move_tcp_kwargs": {
+      "acc": 0.05,
+      "vel": 0.05
+    },
+    "fixed_start_tcp": null,
+    "enabled_steps": ["start", "pregrasp", "grasp"],
+    "settle_s_after_start": 0.5
+  },
+  "preview": {
+    "enabled": true,
+    "window_name": "wrist GraspNet preview",
+    "scale": 0.75,
+    "wait_ms": 1,
+    "save_path": "outputs/last_wrist_preview.png"
+  },
+  "outputs": {
+    "last_result_path": "outputs/last_wrist_grasp_result.json"
+  }
+}

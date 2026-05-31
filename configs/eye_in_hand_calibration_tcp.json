@@ -1,0 +1,34 @@
+{
+  "source": "F:/research/guo/hand-eye/calibration/outputs/eye_in_hand_calibration_夹爪TCP/calibration_result.json",
+  "note": "本轮标定采集时 RTDE 读取的是夹爪 TCP，因此 T_ee_cam_end 在本工程中按 T_tcp_cam 使用。",
+  "mode": "eye_in_hand",
+  "num_total_samples": 35,
+  "num_valid_samples": 34,
+  "handeye_method": "tsai",
+  "T_tcp_cam": [
+    [
+      0.9998018172091098,
+      0.014451170712265735,
+      -0.013692697703767603,
+      -0.003711826321350322
+    ],
+    [
+      -0.013790133192537083,
+      0.9987902871993545,
+      0.047199517187816696,
+      -0.06050188307997929
+    ],
+    [
+      0.014358221752497645,
+      -0.04700133893067165,
+      0.9987916277216334,
+      0.04126668802350681
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ]
+}

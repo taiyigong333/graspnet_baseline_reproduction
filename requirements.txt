@@ -1,0 +1,5 @@
+numpy
+opencv-python
+requests
+pyrealsense2
+ur-rtde

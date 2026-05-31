@@ -1,0 +1,173 @@
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+@dataclass(frozen=True)
+class CameraConfig:
+    serial: str
+    color_width: int = 1280
+    color_height: int = 720
+    depth_width: int = 1280
+    depth_height: int = 720
+    fps: int = 30
+    warmup_frames: int = 10
+    timeout_ms: int = 3000
+    align_depth_to_color: bool = True
+
+
+@dataclass(frozen=True)
+class WorkspaceMaskConfig:
+    type: str = "center_fraction"
+    width_fraction: float = 0.5
+    height_fraction: float = 0.5
+    masked_depth_value: int = 0
+    preview_dim_outside: bool = True
+
+
+@dataclass(frozen=True)
+class CalibrationConfig:
+    path: Path
+    matrix_key: str = "T_tcp_cam"
+
+
+@dataclass(frozen=True)
+class RobotConfig:
+    host: str
+    rtde_enabled: bool = True
+
+
+@dataclass(frozen=True)
+class GraspNetConfig:
+    url: str
+    timeout_s: float = 30.0
+    request_format: str = "multipart"
+    seed_field: str = "seed"
+    color_field: str = "color"
+    depth_field: str = "depth"
+    mask_field: str = "workspace_mask"
+    intrinsics_field: str = "intrinsics"
+    factor_depth_field: str = "factor_depth"
+    extra_fields: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class GraspConfig:
+    tcp_rotation_mode: str = "current"
+    tcp_rotation_offset_matrix: list[list[float]] = field(
+        default_factory=lambda: [
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+    fixed_tcp_rotvec: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    tcp_translation_offset_m: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    target_base_offset_m: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    pregrasp_offset_m: float = 0.08
+    approach_axis_index: int = 0
+    approach_sign: float = -1.0
+
+
+@dataclass(frozen=True)
+class MotionConfig:
+    xmlrpc_url: str
+    move_tcp_method: str = "move_tcp"
+    move_tcp_kwargs: dict[str, Any] = field(default_factory=dict)
+    fixed_start_tcp: list[float] | None = None
+    enabled_steps: list[str] = field(default_factory=lambda: ["start", "pregrasp", "grasp"])
+    settle_s_after_start: float = 0.5
+
+
+@dataclass(frozen=True)
+class PreviewConfig:
+    enabled: bool = True
+    window_name: str = "wrist GraspNet preview"
+    scale: float = 0.75
+    wait_ms: int = 1
+    save_path: Path | None = None
+
+
+@dataclass(frozen=True)
+class OutputsConfig:
+    last_result_path: Path = PROJECT_ROOT / "outputs" / "last_wrist_grasp_result.json"
+
+
+@dataclass(frozen=True)
+class AppConfig:
+    random_seed: int | None
+    camera: CameraConfig
+    workspace_mask: WorkspaceMaskConfig
+    calibration: CalibrationConfig
+    robot: RobotConfig
+    graspnet: GraspNetConfig
+    grasp: GraspConfig
+    motion: MotionConfig
+    preview: PreviewConfig
+    outputs: OutputsConfig
+
+
+def resolve_path(path_like: str | Path) -> Path:
+    path = Path(path_like)
+    if path.is_absolute():
+        return path
+    return PROJECT_ROOT / path
+
+
+def load_json(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def load_config(path: str | Path) -> AppConfig:
+    config_path = resolve_path(path)
+    data = load_json(config_path)
+
+    preview_data = data.get("preview", {})
+    outputs_data = data.get("outputs", {})
+    return AppConfig(
+        random_seed=data.get("random_seed"),
+        camera=CameraConfig(**data["camera"]),
+        workspace_mask=WorkspaceMaskConfig(**data.get("workspace_mask", {})),
+        calibration=CalibrationConfig(
+            path=resolve_path(data["calibration"]["path"]),
+            matrix_key=str(data["calibration"].get("matrix_key", "T_tcp_cam")),
+        ),
+        robot=RobotConfig(**data["robot"]),
+        graspnet=GraspNetConfig(**data["graspnet"]),
+        grasp=GraspConfig(**data.get("grasp", {})),
+        motion=MotionConfig(**data["motion"]),
+        preview=PreviewConfig(
+            enabled=bool(preview_data.get("enabled", True)),
+            window_name=str(preview_data.get("window_name", "wrist GraspNet preview")),
+            scale=float(preview_data.get("scale", 0.75)),
+            wait_ms=int(preview_data.get("wait_ms", 1)),
+            save_path=resolve_path(preview_data["save_path"]) if preview_data.get("save_path") else None,
+        ),
+        outputs=OutputsConfig(
+            last_result_path=resolve_path(
+                outputs_data.get("last_result_path", "outputs/last_wrist_grasp_result.json")
+            )
+        ),
+    )
+
+
+def load_T_tcp_cam(config: CalibrationConfig) -> list[list[float]]:
+    data = load_json(config.path)
+    matrix = data.get(config.matrix_key)
+    if matrix is None:
+        raise KeyError(f"标定文件 {config.path} 缺少矩阵字段: {config.matrix_key}")
+    return matrix
+
+
+def write_json(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write("\n")
