@@ -1,10 +1,10 @@
-# `eye_in_hand_ur7e_wrist.json` 配置说明
+# `eye_in_hand_ur7e_wrist.jsonc` 配置说明
 
 这个文件是腕部相机 eye-in-hand GraspNet 抓取流程的主配置。运行入口是：
 
 ```powershell
-python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.json --dry-run
-python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.json --execute
+python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.jsonc --dry-run
+python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.jsonc --execute
 ```
 
 配置加载代码在 `src/eye_in_hand_graspnet/config.py`，主流程在 `src/eye_in_hand_graspnet/pipeline.py`。所有相对路径都会按本项目根目录 `reproduction/graspnet_baseline_ur7e_by_eye_in_hand/` 解析。
@@ -102,7 +102,7 @@ T_base_grasp   = T_base_cam_now @ T_cam_grasp
 
 | 字段 | 类型 | 当前值 | 含义与配置方法 |
 | --- | --- | --- | --- |
-| `path` | `str` | `"configs/eye_in_hand_calibration_tcp.json"` | 标定矩阵 JSON 文件路径。相对路径按项目根目录解析。 |
+| `path` | `str` | `"configs/eye_in_hand_calibration_tcp.jsonc"` | 标定矩阵 JSON 文件路径。相对路径按项目根目录解析。 |
 | `matrix_key` | `str` | `"T_tcp_cam"` | 从标定 JSON 中读取哪个字段作为 4x4 外参矩阵。当前必须读取 `T_tcp_cam`。 |
 
 `T_tcp_cam` 的语义是“从相机坐标系到 UR 当前 TCP 坐标系”的齐次变换。它不是固定相机的 `T_base_cam`，不能当作静态相机外参使用。每次抓取都会读取当前 RTDE TCP，再动态计算 `T_base_cam_now`。
@@ -381,7 +381,7 @@ python scripts\smoke_test_no_hardware.py
 2. 启动 GraspNet 服务，只跑 dry-run：
 
 ```powershell
-python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.json --dry-run
+python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.jsonc --dry-run
 ```
 
 3. 检查 `outputs/last_wrist_grasp_result.json`：

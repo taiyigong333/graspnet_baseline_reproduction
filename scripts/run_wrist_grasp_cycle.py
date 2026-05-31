@@ -19,8 +19,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="腕部相机 eye-in-hand GraspNet UR7e 抓取循环。")
     parser.add_argument(
         "--config",
-        default="configs/eye_in_hand_ur7e_wrist.json",
-        help="配置文件路径，默认 configs/eye_in_hand_ur7e_wrist.json",
+        default="configs/eye_in_hand_ur7e_wrist.jsonc",
+        help="配置文件路径，默认 configs/eye_in_hand_ur7e_wrist.jsonc",
     )
     action = parser.add_mutually_exclusive_group()
     action.add_argument("--dry-run", action="store_true", help="只计算和打印目标点，不启动示教器 URP。")

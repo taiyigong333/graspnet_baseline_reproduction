@@ -1,0 +1,108 @@
+{
+  "random_seed": 20260531, // 可选项：整数或 null；说明：设置 numpy 随机种子，并按 graspnet.seed_field 发给 GraspNet 服务；如果要让服务端完全自行随机，可设为 null。
+
+  "camera": { // 可选项：必须保留此对象；说明：腕部 RealSense 采集参数，代码只会启动这里指定的一台相机。
+    "serial": "419122270341", // 可选项：任意当前电脑可见的 RealSense 序列号；说明：当前应使用腕部相机，换相机或重新安装相机后必须重新确认/重做 T_tcp_cam。
+    "color_width": 1280, // 可选项：RealSense 支持的彩色分辨率宽度；说明：单位像素，建议和 GraspNet 服务预期输入一致。
+    "color_height": 720, // 可选项：RealSense 支持的彩色分辨率高度；说明：单位像素，当前 1280x720 与现有中心掩码和 smoke 测试一致。
+    "depth_width": 1280, // 可选项：RealSense 支持的深度分辨率宽度；说明：单位像素，建议和彩色宽度一致，便于 depth 对齐到 color。
+    "depth_height": 720, // 可选项：RealSense 支持的深度分辨率高度；说明：单位像素，建议和彩色高度一致。
+    "fps": 30, // 可选项：RealSense 当前模式支持的帧率；说明：单位 Hz，常用 15/30，先保证曝光和深度稳定。
+    "warmup_frames": 10, // 可选项：0 或正整数；说明：相机启动后丢弃的预热帧数，用于等待自动曝光和深度稳定。
+    "timeout_ms": 3000, // 可选项：正整数；说明：等待一帧 RGB-D 的超时时间，单位毫秒；相机偶发超时时可适当增大。
+    "align_depth_to_color": true // 可选项：true/false；说明：true 表示把 depth 对齐到 color 坐标系；当前 GraspNet 输入使用彩色内参，建议保持 true。
+  },
+
+  "workspace_mask": { // 可选项：必须保留此对象；说明：输入 GraspNet 前的工作区掩码，目前实现中心矩形掩码。
+    "type": "center_fraction", // 可选项：当前代码只支持 center_fraction；说明：保留图像中心矩形区域，其余区域 RGB 置黑、depth 置 masked_depth_value。
+    "width_fraction": 0.5, // 可选项：(0, 1] 的浮点数；说明：保留中心区域宽度占整图宽度的比例，0.5 表示保留中心一半宽度。
+    "height_fraction": 0.5, // 可选项：(0, 1] 的浮点数；说明：保留中心区域高度占整图高度的比例，0.5 表示保留中心一半高度。
+    "masked_depth_value": 0, // 可选项：非负整数；说明：掩码外 depth 的填充值，通常用 0 表示无效深度。
+    "preview_dim_outside": true // 可选项：true/false；说明：只影响预览图，true 表示把掩码外区域变暗，false 表示预览中掩码外置黑。
+  },
+
+  "calibration": { // 可选项：必须保留此对象；说明：指定 eye-in-hand 标定矩阵文件和矩阵字段。
+    "path": "configs/eye_in_hand_calibration_tcp.jsonc", // 可选项：相对项目根目录或绝对路径；说明：保存 T_tcp_cam 的 JSONC/JSON 文件，换标定结果时优先改这里或替换该文件。
+    "matrix_key": "T_tcp_cam" // 可选项：标定文件中的 4x4 矩阵字段名；说明：当前运行链路必须读取 T_tcp_cam，用于 T_base_cam_now = T_base_tcp_now @ T_tcp_cam。
+  },
+
+  "robot": { // 可选项：必须保留此对象；说明：UR 控制器连接参数，RTDE 和 Dashboard 都使用 robot.host。
+    "host": "192.168.1.88", // 可选项：UR 控制器实际 IP；说明：用于 RTDE 读取当前 TCP，并在 --execute 时连接 Dashboard。
+    "rtde_enabled": true // 可选项：true/false；说明：当前流程必须读取当前 TCP，建议保持 true；设为 false 会在读取 TCP 时直接报错。
+  },
+
+  "graspnet": { // 可选项：必须保留此对象；说明：GraspNet-baseline HTTP 推理服务请求配置。
+    "url": "http://127.0.0.1:18080/infer", // 可选项：任意可访问的 http/https 推理地址；说明：服务不在本机时改为 GraspNet 服务所在机器 IP 和端口。
+    "timeout_s": 30.0, // 可选项：正数；说明：HTTP 请求超时时间，单位秒；模型推理慢或首帧初始化慢时可增大。
+    "request_format": "json_npy", // 可选项：json_npy 或 multipart；说明：必须与服务端协议一致；当前默认发送 JSON，其中大数组用 .npy + base64 编码。
+    "seed_field": "seed", // 可选项：服务端接受的 seed 字段名；说明：random_seed 不为 null 时才发送。
+    "color_field": "color", // 可选项：任意字段名；说明：仅 multipart 模式使用；json_npy 模式下彩色字段名在客户端固定为 color_rgb。
+    "depth_field": "depth", // 可选项：任意字段名；说明：multipart 模式表示深度 PNG 字段名；json_npy 模式下深度字段名固定为 depth。
+    "mask_field": "workspace_mask", // 可选项：任意字段名；说明：workspace mask 字段名，json_npy 和 multipart 都会使用。
+    "intrinsics_field": "intrinsics", // 可选项：任意字段名；说明：仅 multipart 模式使用；json_npy 模式下内参矩阵字段名固定为 intrinsic_matrix。
+    "factor_depth_field": "factor_depth", // 可选项：任意字段名；说明：深度尺度字段名，发送值为 1.0 / depth_scale_m。
+    "top_k": 50, // 可选项：正整数；说明：请求服务端返回/筛选的候选抓取数量，是否生效取决于服务端实现。
+    "extra_fields": { // 可选项：任意 JSON 对象，也可设为空对象 {}；说明：随请求原样附加的字段，用于服务端记录或分支选择。
+      "camera_serial": "419122270341" // 可选项：任意字符串；说明：当前传腕部相机序列号，便于服务端日志确认输入来源。
+    }
+  },
+
+  "grasp": { // 可选项：必须保留此对象；说明：把 GraspNet best_grasp 转成 UR TCP 目标位姿的策略。
+    "tcp_rotation_mode": "current", // 可选项：current/graspnet/fixed；说明：current 保持当前 TCP 姿态，graspnet 跟随 GraspNet 姿态，fixed 使用 fixed_tcp_rotvec。
+    "grasp_to_tcp_rotation_matrix": [ // 可选项：任意合法 3x3 旋转矩阵；说明：GraspNet 局部轴到 UR TCP 局部轴的基础映射，当前表示 UR TCP X/Y/Z = GraspNet Y/Z/X。
+      [0.0, 0.0, 1.0],
+      [1.0, 0.0, 0.0],
+      [0.0, 1.0, 0.0]
+    ],
+    "tcp_rotation_offset_matrix": [ // 可选项：任意合法 3x3 旋转矩阵；说明：仅 tcp_rotation_mode=graspnet 时生效，用于基础轴映射后的现场姿态微调。
+      [1.0, 0.0, 0.0],
+      [0.0, 1.0, 0.0],
+      [0.0, 0.0, 1.0]
+    ],
+    "fixed_tcp_rotvec": [0.0, 0.0, 0.0], // 可选项：长度 3 的 UR 旋转向量，单位弧度；说明：仅 tcp_rotation_mode=fixed 时生效。
+    "tcp_translation_offset_m": [0.0, 0.0, 0.0], // 可选项：长度 3 的米制向量；说明：从 GraspNet 抓取中心到 UR TCP 原点的偏置，按最终 TCP 坐标系表达，不是法兰盘到 TCP。
+    "target_base_offset_m": [0.0, 0.0, 0.0], // 可选项：长度 3 的米制向量；说明：最终目标点的 base 坐标系全局补偿，只建议用于毫米级现场修正。
+    "pregrasp_offset_m": 0.08, // 可选项：非负浮点数；说明：预抓取点距离最终抓取点的距离，单位米，当前为 8 cm。
+    "approach_axis_index": 0, // 可选项：0/1/2；说明：使用 R_base_grasp 的第几列作为接近轴，当前 0 对应 GraspNet approach/depth 方向。
+    "approach_sign": -1.0 // 可选项：通常为 -1.0 或 1.0；说明：决定预抓取点沿接近轴的正反方向；预抓取点跑反时优先改这里。
+  },
+
+  "motion": { // 可选项：必须保留此对象；说明：--execute 时的 PC 侧 get_target 服务、Dashboard load/play 和动作步骤。
+    "xmlrpc_host": "0.0.0.0", // 可选项：0.0.0.0、127.0.0.1 或指定网卡 IP；说明：Windows PC 侧 get_target 服务监听地址，实机通常用 0.0.0.0。
+    "xmlrpc_port": 50000, // 可选项：未被占用的 TCP 端口；说明：示教器 URP 的 RPC URL 必须指向 http://<Windows_PC_IP>:<port>/RPC2。
+    "dashboard_port": 29999, // 可选项：UR Dashboard 端口，通常为 29999；说明：用于 stop/load/play/running。
+    "grasp_program": "aaaaaa.urp", // 可选项：示教器中的 URP 文件名或 null；说明：--execute 必须配置，并且该 URP 必须持续轮询 PC 的 get_target()。
+    "stop_before_load": true, // 可选项：true/false；说明：load 前是否先 Dashboard stop，建议保持 true，避免旧程序继续运行。
+    "play_after_load": true, // 可选项：true/false；说明：load 后是否 Dashboard play，实机执行通常保持 true。
+    "program_settle_s": 2.0, // 可选项：非负秒数；说明：Dashboard load 后、play 前的等待时间。
+    "grasp_program_start_wait_s": 0.5, // 可选项：非负秒数；说明：Dashboard play 后等待 URP 启动的时间。
+    "require_grasp_program_running": true, // 可选项：true/false；说明：true 表示 play 后检查 Dashboard running，建议保持 true。
+    "require_xmlrpc_polling": true, // 可选项：true/false；说明：true 表示要求示教器确实访问过 PC 的 get_target()，建议保持 true。
+    "xmlrpc_poll_check_s": 2.0, // 可选项：非负秒数；说明：检查示教器是否轮询 get_target() 时等待的时间。
+    "fixed_start_tcp": [-0.245099380, -0.254530307, 0.482963999, -0.121633424, -0.947709943, 0.506871697], // 可选项：长度 6 的 [x,y,z,rx,ry,rz] 或 null；说明：固定观察位，前三项米、后三项弧度；enabled_steps 包含 start 时必须现场低速确认。
+    "enabled_steps": ["start", "open-current", "pregrasp", "grasp"], // 可选项：start/open-current/pregrasp/grasp/close 的列表；说明：决定实机真正执行哪些目标更新，首次建议只保留 start 或 pregrasp。
+    "settle_s_after_start": 0.5, // 可选项：非负秒数；说明：motion_waits_s 未配置 start 时的 start 默认等待时间。
+    "motion_wait_s": 3.0, // 可选项：非负秒数；说明：各动作默认等待时间，被 motion_waits_s 中同名 key 覆盖。
+    "motion_waits_s": { // 可选项：对象，可为空 {}；说明：按动作 label 覆盖等待时间，key 必须和代码里的 label 一致。
+      "start": 5.0, // 可选项：非负秒数；说明：start 目标更新后的等待时间。
+      "open-current": 2.0, // 可选项：非负秒数；说明：open-current 目标更新后的等待时间。
+      "move-pregrasp": 5.0, // 可选项：非负秒数；说明：移动到 tcp_pregrasp 后的等待时间。
+      "move-grasp": 5.0, // 可选项：非负秒数；说明：移动到 tcp_goal 后的等待时间。
+      "close-gripper": 5.0 // 可选项：非负秒数；说明：close 步骤夹爪闭合后的等待时间。
+    },
+    "open_gripper": 100.0, // 可选项：浮点数；说明：发送给 URP 的张开夹爪值，真实含义由示教器脚本 apply_gripper_target() 决定。
+    "close_gripper": 0.0 // 可选项：浮点数；说明：发送给 URP 的闭合夹爪值，首次实机不要急着启用 close。
+  },
+
+  "preview": { // 可选项：可保留或按默认值省略部分字段；说明：腕部图像预览和预览图保存。
+    "enabled": true, // 可选项：true/false；说明：是否显示并保存预览图；无 GUI 环境可设为 false。
+    "window_name": "wrist GraspNet preview", // 可选项：任意字符串；说明：OpenCV 预览窗口名称。
+    "scale": 0.75, // 可选项：正浮点数；说明：预览显示缩放比例，只影响显示，不影响 GraspNet 输入。
+    "wait_ms": 1, // 可选项：非负整数；说明：OpenCV waitKey 等待时间，单位毫秒。
+    "save_path": "outputs/last_wrist_preview.png" // 可选项：相对项目根目录路径、绝对路径或 null；说明：预览图保存路径，null 表示不保存。
+  },
+
+  "outputs": { // 可选项：可保留或按默认值省略部分字段；说明：运行结果输出位置。
+    "last_result_path": "outputs/last_wrist_grasp_result.json" // 可选项：相对项目根目录或绝对路径；说明：保存最近一次运行结果，包含 current_tcp、T_base_cam_now、tcp_pregrasp、tcp_goal 和 GraspNet 原始响应。
+  }
+}

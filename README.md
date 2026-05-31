@@ -15,8 +15,8 @@
 
 ```text
 configs/
-  eye_in_hand_ur7e_wrist.json        # 主配置
-  eye_in_hand_calibration_tcp.json   # 本项目内的 T_tcp_cam 快照
+  eye_in_hand_ur7e_wrist.jsonc        # 主配置
+  eye_in_hand_calibration_tcp.jsonc   # 本项目内的 T_tcp_cam 快照
 docs/
   0_项目交接.md
   1_转换graspnet输出的具体过程说明.md
@@ -53,7 +53,7 @@ python scripts\smoke_test_no_hardware.py
 连接腕部相机、GraspNet 服务和 RTDE 后，先干跑：
 
 ```powershell
-python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.json --dry-run
+python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.jsonc --dry-run
 ```
 
 干跑会拍摄腕部 RGB-D、显示腕部预览、请求 GraspNet、读取当前 TCP，并打印：
@@ -70,7 +70,7 @@ python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.
 确认目标点位和运动方向正确后，再显式执行：
 
 ```powershell
-python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.json --execute
+python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.jsonc --execute
 ```
 
 执行前必须确认：

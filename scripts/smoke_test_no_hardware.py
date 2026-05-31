@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 import re
 import sys
 import urllib.request
@@ -15,7 +16,7 @@ SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from eye_in_hand_graspnet.config import load_T_tcp_cam, load_config
+from eye_in_hand_graspnet.config import _strip_jsonc_comments, load_T_tcp_cam, load_config
 from eye_in_hand_graspnet.graspnet_client import GraspNetHttpClient
 from eye_in_hand_graspnet.mask import apply_color_mask, center_rect_bounds, make_center_mask
 from eye_in_hand_graspnet.pipeline import _validate_execute_config
@@ -42,7 +43,10 @@ def call_get_target(url: str) -> list[float]:
 
 
 def main() -> int:
-    config = load_config("configs/eye_in_hand_ur7e_wrist.json")
+    jsonc_text = '{"url": "http://127.0.0.1:18080/infer", "value": 1} // comment'
+    assert json.loads(_strip_jsonc_comments(jsonc_text))["url"] == "http://127.0.0.1:18080/infer"
+
+    config = load_config("configs/eye_in_hand_ur7e_wrist.jsonc")
     T_tcp_cam = load_T_tcp_cam(config.calibration)
 
     mask = make_center_mask(1280, 720, config.workspace_mask)

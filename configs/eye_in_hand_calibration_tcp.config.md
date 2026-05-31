@@ -1,10 +1,10 @@
-# `eye_in_hand_calibration_tcp.json` 配置说明
+# `eye_in_hand_calibration_tcp.jsonc` 配置说明
 
-这个文件是本项目使用的 eye-in-hand 标定矩阵快照。主配置 `eye_in_hand_ur7e_wrist.json` 通过下面两个字段读取它：
+这个文件是本项目使用的 eye-in-hand 标定矩阵快照。主配置 `eye_in_hand_ur7e_wrist.jsonc` 通过下面两个字段读取它：
 
 ```json
 "calibration": {
-  "path": "configs/eye_in_hand_calibration_tcp.json",
+  "path": "configs/eye_in_hand_calibration_tcp.jsonc",
   "matrix_key": "T_tcp_cam"
 }
 ```
@@ -114,7 +114,7 @@ python scripts\smoke_test_no_hardware.py
 6. 连接相机、GraspNet 服务和 RTDE 后先跑 dry-run：
 
 ```powershell
-python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.json --dry-run
+python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.jsonc --dry-run
 ```
 
 7. 检查输出里的 `target.T_base_cam_now`、`target.grasp_center_base`、`target.tcp_pregrasp` 和 `target.tcp_goal` 是否合理。
@@ -127,7 +127,7 @@ python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.
 
 | 主配置字段 | 当前值 | 作用 |
 | --- | --- | --- |
-| `calibration.path` | `"configs/eye_in_hand_calibration_tcp.json"` | 指向本文件。 |
+| `calibration.path` | `"configs/eye_in_hand_calibration_tcp.jsonc"` | 指向本文件。 |
 | `calibration.matrix_key` | `"T_tcp_cam"` | 从本文件读取 `T_tcp_cam` 字段。 |
 
 如果以后在同一个文件里保留多个矩阵，可以改 `matrix_key` 指向新的字段。但更推荐一个文件只保留当前要运行的矩阵，历史矩阵放到单独命名的快照文件里，减少误用风险。

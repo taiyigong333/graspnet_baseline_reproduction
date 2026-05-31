@@ -23,7 +23,7 @@ p_A = T_A_B @ p_B
 1. 眼在手上标定矩阵：
 
 ```text
-configs/eye_in_hand_calibration_tcp.json/T_tcp_cam
+configs/eye_in_hand_calibration_tcp.jsonc/T_tcp_cam
 ```
 
 本轮标定时 RTDE 保存的是夹爪 TCP 位姿，所以这个矩阵按 `T_tcp_cam` 使用。

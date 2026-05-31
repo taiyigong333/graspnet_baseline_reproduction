@@ -141,8 +141,54 @@ def resolve_path(path_like: str | Path) -> Path:
 
 
 def load_json(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+    text = path.read_text(encoding="utf-8")
+    return json.loads(_strip_jsonc_comments(text))
+
+
+def _strip_jsonc_comments(text: str) -> str:
+    """去掉 JSONC 注释，同时保留字符串里的 // 和 /*...*/。"""
+    result: list[str] = []
+    in_string = False
+    escaped = False
+    i = 0
+    while i < len(text):
+        char = text[i]
+        next_char = text[i + 1] if i + 1 < len(text) else ""
+
+        if in_string:
+            result.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            i += 1
+            continue
+
+        if char == '"':
+            in_string = True
+            result.append(char)
+            i += 1
+            continue
+        if char == "/" and next_char == "/":
+            i += 2
+            while i < len(text) and text[i] not in "\r\n":
+                i += 1
+            continue
+        if char == "/" and next_char == "*":
+            i += 2
+            while i + 1 < len(text) and not (text[i] == "*" and text[i + 1] == "/"):
+                if text[i] in "\r\n":
+                    result.append(text[i])
+                i += 1
+            i += 2
+            continue
+
+        result.append(char)
+        i += 1
+
+    return "".join(result)
 
 
 def load_config(path: str | Path) -> AppConfig:

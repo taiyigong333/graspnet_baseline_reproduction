@@ -18,7 +18,7 @@ R_base_grasp_as_tcp = R_base_grasp @ grasp_to_tcp_rotation_matrix
 主配置位置：
 
 ```text
-configs/eye_in_hand_ur7e_wrist.json/grasp/grasp_to_tcp_rotation_matrix
+configs/eye_in_hand_ur7e_wrist.jsonc/grasp/grasp_to_tcp_rotation_matrix
 ```
 
 当前默认值：
