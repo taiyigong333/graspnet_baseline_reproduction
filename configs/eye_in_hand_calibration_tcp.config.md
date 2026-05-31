@@ -38,8 +38,8 @@ T_base_grasp   = T_base_cam_now @ T_cam_grasp
 | `source` | `str` | 原始标定结果路径 | 可改 | 记录矩阵来自哪个标定输出文件。只用于追溯，不参与运行计算。 |
 | `note` | `str` | 标定语义说明 | 可改 | 说明为什么原标定输出在本工程中按 `T_tcp_cam` 使用。只用于人工阅读。 |
 | `mode` | `str` | `"eye_in_hand"` | 不建议手改 | 记录原标定模式。只用于追溯，不参与运行计算。 |
-| `num_total_samples` | `int` | `35` | 不建议手改 | 原始采集样本总数。只用于追溯。 |
-| `num_valid_samples` | `int` | `34` | 不建议手改 | 原始标定有效样本数。只用于追溯。 |
+| `num_total_samples` | `int` | `50` | 不建议手改 | 原始采集样本总数。只用于追溯。 |
+| `num_valid_samples` | `int` | `50` | 不建议手改 | 原始标定有效样本数。只用于追溯。 |
 | `handeye_method` | `str` | `"tsai"` | 不建议手改 | 原标定使用的手眼算法。只用于追溯。 |
 | `T_tcp_cam` | `4x4` 数值矩阵 | 见 JSON | 只在替换整套标定结果时改 | 抓取流程真正读取和使用的矩阵。主配置的 `calibration.matrix_key` 当前指向它。 |
 
@@ -65,17 +65,17 @@ T_base_grasp   = T_base_cam_now @ T_cam_grasp
 当前平移量约为：
 
 ```text
-tx = -0.003711826 m
-ty = -0.060501883 m
-tz =  0.041266688 m
+tx = -0.004206794 m
+ty = -0.061662627 m
+tz = -0.150372864 m
 ```
 
 也就是相机原点相对 TCP 原点大约是：
 
 ```text
-x = -3.7 mm
-y = -60.5 mm
-z =  41.3 mm
+x = -4.2 mm
+y = -61.7 mm
+z = -150.4 mm
 ```
 
 这个量级可用于人工 sanity check，但不要只凭肉眼量测替换矩阵。
