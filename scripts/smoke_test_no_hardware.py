@@ -107,6 +107,10 @@ def main() -> int:
     assert abs(float(np.linalg.det(grasp_to_tcp)) - 1.0) < 1e-12
     np.testing.assert_allclose(result.R_base_grasp_as_tcp, result.R_base_grasp @ grasp_to_tcp, atol=1e-12)
     np.testing.assert_allclose(result.R_base_tcp_goal, result.T_base_tcp_now[:3, :3], atol=1e-12)
+    np.testing.assert_allclose(result.tcp_translation_offset_base, np.zeros(3), atol=1e-12)
+    np.testing.assert_allclose(result.target_base_offset, np.zeros(3), atol=1e-12)
+    np.testing.assert_allclose(result.approach_axis_base, result.R_base_grasp[:, 0], atol=1e-12)
+    np.testing.assert_allclose(result.pregrasp_offset_base, -0.08 * result.approach_axis_base, atol=1e-12)
     assert len(result.tcp_goal) == 6
     assert len(result.tcp_pregrasp) == 6
 
@@ -127,6 +131,27 @@ def main() -> int:
     np.testing.assert_allclose(graspnet_rotation_result.R_base_tcp_goal[:, 0], [0.0, 1.0, 0.0], atol=1e-12)
     np.testing.assert_allclose(graspnet_rotation_result.R_base_tcp_goal[:, 1], [0.0, 0.0, 1.0], atol=1e-12)
     np.testing.assert_allclose(graspnet_rotation_result.R_base_tcp_goal[:, 2], [1.0, 0.0, 0.0], atol=1e-12)
+    # GraspNet 局部轴到 UR TCP 轴的修正是右乘局部旋转，只能改变姿态，不能移动抓取中心。
+    np.testing.assert_allclose(graspnet_rotation_result.grasp_center_base, best_grasp.translation, atol=1e-12)
+    np.testing.assert_allclose(graspnet_rotation_result.tcp_goal[:3], best_grasp.translation, atol=1e-12)
+
+    local_tcp_offset_result = compute_tcp_target(
+        T_tcp_cam=np.eye(4),
+        current_tcp_pose=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        best_grasp=best_grasp,
+        tcp_rotation_mode="graspnet",
+        grasp_to_tcp_rotation_matrix=config.grasp.grasp_to_tcp_rotation_matrix,
+        tcp_rotation_offset_matrix=np.eye(3),
+        fixed_tcp_rotvec=[0.0, 0.0, 0.0],
+        tcp_translation_offset_m=[0.0, 0.0, 0.02],
+        target_base_offset_m=[0.0, 0.0, 0.0],
+        pregrasp_offset_m=0.08,
+        approach_axis_index=0,
+        approach_sign=-1.0,
+    )
+    np.testing.assert_allclose(local_tcp_offset_result.tcp_translation_offset_base, [0.02, 0.0, 0.0], atol=1e-12)
+    np.testing.assert_allclose(local_tcp_offset_result.tcp_goal[:3], best_grasp.translation + [0.02, 0.0, 0.0], atol=1e-12)
+
     intrinsic = np.array([[500.0, 0.0, 320.0], [0.0, 500.0, 240.0], [0.0, 0.0, 1.0]])
     assert project_camera_point_to_pixel(np.array([0.0, 0.0, 1.0]), intrinsic) == (320, 240)
     segments = build_projected_gripper_segments(best_grasp, intrinsic)
@@ -177,6 +202,26 @@ def main() -> int:
         assert "motion.fixed_start_tcp" in str(exc)
     else:
         raise AssertionError("--execute 必须在 start 步骤缺少 fixed_start_tcp 时拒绝运行")
+
+    big_base_offset_config = replace(config, grasp=replace(config.grasp, target_base_offset_m=[0.0, 0.0, -0.1]))
+    try:
+        _validate_execute_config(big_base_offset_config, execute=True)
+    except ValueError as exc:
+        assert "target_base_offset_m" in str(exc)
+    else:
+        raise AssertionError("--execute 必须拒绝大于 3 cm 的 base 全局补偿")
+
+    direct_graspnet_config = replace(
+        config,
+        grasp=replace(config.grasp, tcp_rotation_mode="graspnet"),
+        motion=replace(config.motion, enabled_steps=["start", "grasp"]),
+    )
+    try:
+        _validate_execute_config(direct_graspnet_config, execute=True)
+    except ValueError as exc:
+        assert "缺少 pregrasp" in str(exc)
+    else:
+        raise AssertionError("--execute 必须拒绝 graspnet 姿态下跳过 pregrasp 直接抓取")
 
     print("[smoke] 配置、中心掩码、GraspNet 输出解析、eye-in-hand TCP 目标计算和 XML-RPC get_target 通过。")
     return 0

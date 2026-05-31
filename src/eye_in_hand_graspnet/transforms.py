@@ -32,6 +32,10 @@ class TcpTargetResult:
     T_base_cam_now: np.ndarray
     T_base_grasp: np.ndarray
     grasp_center_base: np.ndarray
+    tcp_translation_offset_base: np.ndarray
+    target_base_offset: np.ndarray
+    approach_axis_base: np.ndarray
+    pregrasp_offset_base: np.ndarray
     tcp_goal: list[float]
     tcp_pregrasp: list[float]
     R_base_grasp: np.ndarray
@@ -44,6 +48,10 @@ class TcpTargetResult:
             "T_base_cam_now": self.T_base_cam_now.tolist(),
             "T_base_grasp": self.T_base_grasp.tolist(),
             "grasp_center_base": self.grasp_center_base.tolist(),
+            "tcp_translation_offset_base": self.tcp_translation_offset_base.tolist(),
+            "target_base_offset": self.target_base_offset.tolist(),
+            "approach_axis_base": self.approach_axis_base.tolist(),
+            "pregrasp_offset_base": self.pregrasp_offset_base.tolist(),
             "R_base_grasp": self.R_base_grasp.tolist(),
             "R_base_grasp_as_tcp": self.R_base_grasp_as_tcp.tolist(),
             "R_base_tcp_goal": self.R_base_tcp_goal.tolist(),
@@ -259,7 +267,9 @@ def compute_tcp_target(
     )
     tcp_offset = as_vector3(tcp_translation_offset_m, "tcp_translation_offset_m")
     base_offset = as_vector3(target_base_offset_m, "target_base_offset_m")
-    tcp_goal_translation = grasp_center_base + R_base_tcp_goal @ tcp_offset + base_offset
+    tcp_translation_offset_base = R_base_tcp_goal @ tcp_offset
+    target_base_offset = base_offset.copy()
+    tcp_goal_translation = grasp_center_base + tcp_translation_offset_base + target_base_offset
 
     T_base_tcp_goal = make_transform(R_base_tcp_goal, tcp_goal_translation)
     tcp_goal = matrix_to_pose(T_base_tcp_goal)
@@ -267,7 +277,8 @@ def compute_tcp_target(
     if approach_axis_index not in (0, 1, 2):
         raise ValueError("approach_axis_index 只能是 0, 1, 2")
     approach_axis = normalize(R_base_grasp[:, approach_axis_index], "approach_axis")
-    pregrasp_translation = tcp_goal_translation + float(approach_sign) * float(pregrasp_offset_m) * approach_axis
+    pregrasp_offset_base = float(approach_sign) * float(pregrasp_offset_m) * approach_axis
+    pregrasp_translation = tcp_goal_translation + pregrasp_offset_base
     T_base_tcp_pregrasp = make_transform(R_base_tcp_goal, pregrasp_translation)
     tcp_pregrasp = matrix_to_pose(T_base_tcp_pregrasp)
 
@@ -276,6 +287,10 @@ def compute_tcp_target(
         T_base_cam_now=T_base_cam_now,
         T_base_grasp=T_base_grasp,
         grasp_center_base=grasp_center_base,
+        tcp_translation_offset_base=tcp_translation_offset_base,
+        target_base_offset=target_base_offset,
+        approach_axis_base=approach_axis,
+        pregrasp_offset_base=pregrasp_offset_base,
         tcp_goal=tcp_goal,
         tcp_pregrasp=tcp_pregrasp,
         R_base_grasp=R_base_grasp,

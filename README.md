@@ -22,6 +22,7 @@ docs/
   1_转换graspnet输出的具体过程说明.md
   2_转换的注意事项.md
   3_GraspNet局部轴到UR_TCP轴的转换说明.md
+  4_类似issue65的坐标旋转问题排查与修正.md
 scripts/
   run_wrist_grasp_cycle.py           # 主运行入口
   smoke_test_no_hardware.py          # 无硬件烟测

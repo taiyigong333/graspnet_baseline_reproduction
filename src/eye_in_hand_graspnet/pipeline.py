@@ -133,6 +133,9 @@ def run_wrist_grasp_cycle(config: AppConfig, *, execute: bool) -> dict[str, Any]
 
         print("[result] current_tcp      = " + format_pose(tcp_now))
         print("[result] grasp_center_base= " + _format_xyz(target.grasp_center_base))
+        print("[result] tcp_offset_base  = " + _format_xyz(target.tcp_translation_offset_base))
+        print("[result] target_base_offset= " + _format_xyz(target.target_base_offset))
+        print("[result] pregrasp_offset  = " + _format_xyz(target.pregrasp_offset_base))
         print("[result] tcp_pregrasp     = " + format_pose(target.tcp_pregrasp))
         print("[result] tcp_goal         = " + format_pose(target.tcp_goal))
         print(f"[result] saved={config.outputs.last_result_path}")
@@ -160,6 +163,22 @@ def _validate_execute_config(config: AppConfig, *, execute: bool) -> None:
         raise ValueError(f"motion.enabled_steps 包含未知步骤: {unknown_steps}，可选 {sorted(allowed_steps)}。")
     if not execute:
         return
+    base_offset_norm = float(np.linalg.norm(np.asarray(config.grasp.target_base_offset_m, dtype=float)))
+    if base_offset_norm > 0.03:
+        raise ValueError(
+            "grasp.target_base_offset_m 的模长超过 3 cm。"
+            "该字段是 base 坐标系下的全局小补偿，不能用来修正 GraspNet 姿态、TCP 轴定义或标定错误。"
+            "请先改回毫米级补偿并通过 --dry-run 检查输出分量。"
+        )
+    if (
+        str(config.grasp.tcp_rotation_mode).lower() == "graspnet"
+        and "grasp" in config.motion.enabled_steps
+        and "pregrasp" not in config.motion.enabled_steps
+    ):
+        raise ValueError(
+            "当前启用了 tcp_rotation_mode=graspnet 且直接执行 grasp，但 motion.enabled_steps 缺少 pregrasp。"
+            "姿态跟随 GraspNet 时必须先低速到预抓取点确认方向，再执行最终抓取点。"
+        )
     if "start" in config.motion.enabled_steps and config.motion.fixed_start_tcp is None:
         raise ValueError(
             "motion.enabled_steps 包含 start，但 motion.fixed_start_tcp 仍为 null。"
