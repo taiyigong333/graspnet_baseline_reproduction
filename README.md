@@ -7,7 +7,7 @@
 1. UR7e 先移动到固定观察点位。
 2. 只启动腕部 RealSense 相机，默认序列号 `419122270341`。
 3. 对 RGB-D 输入应用中心工作区掩码：只保留画面中心、宽高各为整图二分之一的矩形。
-4. 调用 GraspNet-baseline 推理服务，得到相机坐标系下的 `best_grasp`。
+4. 调用 GraspNet-baseline 推理服务，当前默认使用 `http://127.0.0.1:18080/infer` 的 JSON `.npy_base64` 协议，得到相机坐标系下的 `best_grasp`。
 5. 读取当前夹爪 TCP 的 RTDE 位姿，结合眼在手上标定矩阵 `T_tcp_cam`，把抓取中心转换到机器人 `base` 坐标系。
 6. 输出 `tcp_pregrasp` 和 `tcp_goal`；确认无误后可通过 XML-RPC 执行移动。
 

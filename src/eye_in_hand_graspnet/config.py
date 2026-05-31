@@ -47,13 +47,14 @@ class RobotConfig:
 class GraspNetConfig:
     url: str
     timeout_s: float = 30.0
-    request_format: str = "multipart"
+    request_format: str = "json_npy"
     seed_field: str = "seed"
     color_field: str = "color"
     depth_field: str = "depth"
     mask_field: str = "workspace_mask"
     intrinsics_field: str = "intrinsics"
     factor_depth_field: str = "factor_depth"
+    top_k: int = 50
     extra_fields: dict[str, Any] = field(default_factory=dict)
 
 

@@ -13,9 +13,11 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from eye_in_hand_graspnet.config import load_T_tcp_cam, load_config
+from eye_in_hand_graspnet.graspnet_client import GraspNetHttpClient
 from eye_in_hand_graspnet.mask import apply_color_mask, center_rect_bounds, make_center_mask
 from eye_in_hand_graspnet.pipeline import _validate_execute_config
 from eye_in_hand_graspnet.transforms import BestGrasp, compute_tcp_target, parse_best_grasp, pose_to_matrix
+from eye_in_hand_graspnet.array_codec import decode_npy
 
 
 def main() -> int:
@@ -30,6 +32,19 @@ def main() -> int:
     masked_color = apply_color_mask(color, mask)
     assert masked_color[0, 0].tolist() == [0, 0, 0]
     assert masked_color[360, 640].tolist() == [200, 200, 200]
+    client = GraspNetHttpClient(config.graspnet)
+    payload = client._build_json_npy_payload(
+        color_bgr=masked_color,
+        depth_raw=np.ones((720, 1280), dtype=np.uint16) * 1000,
+        workspace_mask=mask,
+        intrinsics={"K": [[600.0, 0.0, 640.0], [0.0, 600.0, 360.0], [0.0, 0.0, 1.0]]},
+        depth_scale_m=0.001,
+        seed=config.random_seed,
+    )
+    assert payload["factor_depth"] == 1000.0
+    assert payload["top_k"] == config.graspnet.top_k
+    assert decode_npy(payload["color_rgb"])[360, 640].tolist() == [200, 200, 200]
+    assert decode_npy(payload["workspace_mask"]).shape == (720, 1280)
 
     best_grasp = BestGrasp(
         score=0.9,

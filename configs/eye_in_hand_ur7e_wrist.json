@@ -27,15 +27,16 @@
     "rtde_enabled": true
   },
   "graspnet": {
-    "url": "http://127.0.0.1:8000/infer",
+    "url": "http://127.0.0.1:18080/infer",
     "timeout_s": 30.0,
-    "request_format": "multipart",
+    "request_format": "json_npy",
     "seed_field": "seed",
     "color_field": "color",
     "depth_field": "depth",
     "mask_field": "workspace_mask",
     "intrinsics_field": "intrinsics",
     "factor_depth_field": "factor_depth",
+    "top_k": 50,
     "extra_fields": {
       "camera_serial": "419122270341"
     }
