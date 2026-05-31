@@ -29,7 +29,16 @@ def draw_wrist_preview(
     cv2.rectangle(image, (x0, y0), (x1 - 1, y1 - 1), (0, 255, 255), 2)
 
     if best_grasp is not None:
-        _draw_grasp_axes(image, best_grasp, intrinsics)
+        try:
+            intrinsic_matrix = _intrinsic_matrix(intrinsics)
+        except (KeyError, TypeError, ValueError):
+            intrinsic_matrix = None
+        if intrinsic_matrix is not None:
+            point_uv = project_camera_point_to_pixel(best_grasp.translation, intrinsic_matrix)
+            if point_uv is not None:
+                u, v = point_uv
+                if 0 <= u < image.shape[1] and 0 <= v < image.shape[0]:
+                    draw_grasp_marker(cv2, image, u, v, best_grasp, intrinsic_matrix)
 
     if save_path is not None:
         save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -48,33 +57,161 @@ def _mask_bbox(mask: np.ndarray) -> tuple[int, int, int, int]:
     return int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
 
 
-def _draw_grasp_axes(image: np.ndarray, best_grasp: BestGrasp, intrinsics: dict) -> None:
-    try:
-        import cv2
-    except ModuleNotFoundError:
-        return
-    t = best_grasp.translation
-    if float(t[2]) <= 1e-6:
-        return
-    K = np.asarray(intrinsics.get("K"), dtype=float)
-    if K.shape != (3, 3):
-        return
-
-    origin = _project(K, t)
-    if origin is None:
-        return
-    cv2.circle(image, origin, 5, (0, 0, 255), -1)
-    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-    for axis_idx, color in enumerate(colors):
-        point = t + best_grasp.rotation_matrix[:, axis_idx] * 0.04
-        projected = _project(K, point)
-        if projected is not None:
-            cv2.line(image, origin, projected, color, 2)
-
-
-def _project(K: np.ndarray, xyz: np.ndarray) -> tuple[int, int] | None:
+def project_camera_point_to_pixel(
+    translation: np.ndarray,
+    intrinsic_matrix: np.ndarray,
+) -> tuple[int, int] | None:
+    xyz = np.asarray(translation, dtype=np.float64).reshape(3)
     z = float(xyz[2])
-    if z <= 1e-6:
+    if z <= 1e-8:
         return None
-    uvw = K @ xyz
-    return int(round(float(uvw[0] / z))), int(round(float(uvw[1] / z)))
+    intr = np.asarray(intrinsic_matrix, dtype=np.float64)
+    if intr.shape != (3, 3):
+        return None
+    u = intr[0, 0] * float(xyz[0]) / z + intr[0, 2]
+    v = intr[1, 1] * float(xyz[1]) / z + intr[1, 2]
+    return int(round(u)), int(round(v))
+
+
+def build_projected_gripper_segments(
+    grasp: BestGrasp,
+    intrinsic_matrix: np.ndarray,
+) -> list[tuple[tuple[int, int], tuple[int, int], str]]:
+    """把 GraspNet 小夹爪三维线框投影到当前腕部相机图像。"""
+    center = np.asarray(grasp.translation, dtype=np.float64).reshape(3)
+    rotation = np.asarray(grasp.rotation_matrix, dtype=np.float64).reshape(3, 3)
+    approach_axis = _unit_vector(rotation[:, 0], "grasp approach axis")
+    jaw_axis = _unit_vector(rotation[:, 1], "grasp jaw axis")
+
+    width = _coerce_positive_length(grasp.width, default=0.08, lower=0.015, upper=0.16)
+    depth = _coerce_positive_length(grasp.depth, default=0.04, lower=0.025, upper=0.10)
+    finger_width_m = 0.004
+    depth_base_m = 0.020
+    tail_length_m = 0.035
+    half_width = width * 0.5
+
+    def gripper_point(x_m: float, y_m: float) -> np.ndarray:
+        return center + approach_axis * x_m + jaw_axis * y_m
+
+    palm_x = -(depth_base_m + finger_width_m * 0.5)
+    tail_end_x = -(depth_base_m + finger_width_m + tail_length_m)
+    left_y = -(half_width + finger_width_m * 0.5)
+    right_y = half_width + finger_width_m * 0.5
+    points = {
+        "left_palm": gripper_point(palm_x, left_y),
+        "left_tip": gripper_point(depth, left_y),
+        "right_palm": gripper_point(palm_x, right_y),
+        "right_tip": gripper_point(depth, right_y),
+        "tail_start": gripper_point(palm_x, 0.0),
+        "tail_end": gripper_point(tail_end_x, 0.0),
+        "target": center,
+    }
+    lines = [
+        ("left_palm", "left_tip", "finger"),
+        ("right_palm", "right_tip", "finger"),
+        ("left_palm", "right_palm", "palm"),
+        ("tail_end", "tail_start", "tail"),
+        ("tail_end", "target", "approach"),
+    ]
+
+    projected: list[tuple[tuple[int, int], tuple[int, int], str]] = []
+    for start_name, end_name, label in lines:
+        start = project_camera_point_to_pixel(points[start_name], intrinsic_matrix)
+        end = project_camera_point_to_pixel(points[end_name], intrinsic_matrix)
+        if start is not None and end is not None:
+            projected.append((start, end, label))
+    return projected
+
+
+def draw_grasp_marker(
+    cv2,
+    image_bgr: np.ndarray,
+    u: int,
+    v: int,
+    grasp: BestGrasp,
+    intrinsic_matrix: np.ndarray,
+) -> None:
+    draw_projected_gripper(cv2, image_bgr, grasp, intrinsic_matrix)
+
+    marker_color = (0, 0, 255)
+    text_color = (255, 255, 255)
+    shadow_color = (0, 0, 0)
+    cv2.circle(image_bgr, (u, v), 10, marker_color, 2)
+    cv2.drawMarker(image_bgr, (u, v), marker_color, markerType=cv2.MARKER_CROSS, markerSize=32, thickness=2)
+
+    label_lines = [
+        f"target ({u}, {v})",
+        f"score {_format_optional(grasp.score)}, width {_format_optional(grasp.width)}m",
+        f"xyz {_format_vector(grasp.translation)}",
+    ]
+    x0 = min(max(8, u + 16), max(8, image_bgr.shape[1] - 360))
+    y0 = max(24, v - 48)
+    for i, text in enumerate(label_lines):
+        y = y0 + i * 24
+        cv2.putText(image_bgr, text, (x0, y), cv2.FONT_HERSHEY_SIMPLEX, 0.62, shadow_color, 3, cv2.LINE_AA)
+        cv2.putText(image_bgr, text, (x0, y), cv2.FONT_HERSHEY_SIMPLEX, 0.62, text_color, 1, cv2.LINE_AA)
+
+
+def draw_projected_gripper(cv2, image_bgr: np.ndarray, grasp: BestGrasp, intrinsic_matrix: np.ndarray) -> None:
+    segment_colors = {
+        "finger": (0, 255, 255),
+        "palm": (0, 180, 255),
+        "tail": (255, 180, 0),
+        "approach": (80, 255, 80),
+    }
+    try:
+        segments = build_projected_gripper_segments(grasp, intrinsic_matrix)
+    except (TypeError, ValueError):
+        return
+    for start, end, label in segments:
+        color = segment_colors.get(label, (0, 255, 255))
+        if label == "approach" and hasattr(cv2, "arrowedLine"):
+            cv2.arrowedLine(image_bgr, start, end, color, 2, cv2.LINE_AA, tipLength=0.25)
+        else:
+            cv2.line(image_bgr, start, end, color, 3, cv2.LINE_AA)
+
+
+def _intrinsic_matrix(intrinsics: dict) -> np.ndarray:
+    if "K" in intrinsics:
+        matrix = np.asarray(intrinsics["K"], dtype=np.float64)
+    else:
+        matrix = np.asarray(
+            [
+                [float(intrinsics["fx"]), 0.0, float(intrinsics["ppx"])],
+                [0.0, float(intrinsics["fy"]), float(intrinsics["ppy"])],
+                [0.0, 0.0, 1.0],
+            ],
+            dtype=np.float64,
+        )
+    if matrix.shape != (3, 3):
+        raise ValueError(f"相机内参矩阵应为 3x3，实际 shape={matrix.shape}")
+    return matrix
+
+
+def _unit_vector(vector: np.ndarray, name: str) -> np.ndarray:
+    values = np.asarray(vector, dtype=np.float64).reshape(3)
+    norm = float(np.linalg.norm(values))
+    if norm <= 1e-8:
+        raise ValueError(f"{name} 为零向量，无法绘制小夹爪。")
+    return values / norm
+
+
+def _coerce_positive_length(value: object, default: float, lower: float, upper: float) -> float:
+    try:
+        length = abs(float(value))
+    except (TypeError, ValueError):
+        length = float(default)
+    if not np.isfinite(length) or length <= 1e-8:
+        length = float(default)
+    return float(np.clip(length, lower, upper))
+
+
+def _format_optional(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{float(value):.3f}"
+
+
+def _format_vector(values: np.ndarray) -> str:
+    vec = np.asarray(values, dtype=np.float64).reshape(-1)
+    return "[" + ", ".join(f"{v:.3f}" for v in vec[:3]) + "]"

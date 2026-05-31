@@ -16,6 +16,7 @@ from eye_in_hand_graspnet.config import load_T_tcp_cam, load_config
 from eye_in_hand_graspnet.graspnet_client import GraspNetHttpClient
 from eye_in_hand_graspnet.mask import apply_color_mask, center_rect_bounds, make_center_mask
 from eye_in_hand_graspnet.pipeline import _validate_execute_config
+from eye_in_hand_graspnet.preview import build_projected_gripper_segments, project_camera_point_to_pixel
 from eye_in_hand_graspnet.transforms import BestGrasp, compute_tcp_target, parse_best_grasp, pose_to_matrix
 from eye_in_hand_graspnet.array_codec import decode_npy
 
@@ -73,6 +74,10 @@ def main() -> int:
     np.testing.assert_allclose(result.grasp_center_base, expected_center, atol=1e-9)
     assert len(result.tcp_goal) == 6
     assert len(result.tcp_pregrasp) == 6
+    intrinsic = np.array([[500.0, 0.0, 320.0], [0.0, 500.0, 240.0], [0.0, 0.0, 1.0]])
+    assert project_camera_point_to_pixel(np.array([0.0, 0.0, 1.0]), intrinsic) == (320, 240)
+    segments = build_projected_gripper_segments(best_grasp, intrinsic)
+    assert {label for _start, _end, label in segments} == {"finger", "palm", "tail", "approach"}
 
     parsed = parse_best_grasp(
         {
