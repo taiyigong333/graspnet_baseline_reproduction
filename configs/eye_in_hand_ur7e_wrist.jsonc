@@ -1,5 +1,6 @@
 {
-  "random_seed": 20260531, // 可选项：整数或 null；说明：设置 numpy 随机种子，并按 graspnet.seed_field 发给 GraspNet 服务；如果要让服务端完全自行随机，可设为 null。
+  "random_seed_fixed": true, // 可选项：true/false；说明：是否固定随机数种子；true 时使用 random_seed 并发给 GraspNet，false 时不设置本地 seed，也不发送 seed 字段。
+  "random_seed": 20260531, // 可选项：整数或 null；说明：random_seed_fixed=true 时使用的种子；如果要让服务端完全自行随机，可设 random_seed_fixed=false。
 
   "camera": { // 可选项：必须保留此对象；说明：腕部 RealSense 采集参数，代码只会启动这里指定的一台相机。
     "serial": "419122270341", // 可选项：任意当前电脑可见的 RealSense 序列号；说明：当前应使用腕部相机，换相机或重新安装相机后必须重新确认/重做 T_tcp_cam。
@@ -35,7 +36,7 @@
     "url": "http://127.0.0.1:18080/infer", // 可选项：任意可访问的 http/https 推理地址；说明：服务不在本机时改为 GraspNet 服务所在机器 IP 和端口。
     "timeout_s": 30.0, // 可选项：正数；说明：HTTP 请求超时时间，单位秒；模型推理慢或首帧初始化慢时可增大。
     "request_format": "json_npy", // 可选项：json_npy 或 multipart；说明：必须与服务端协议一致；当前默认发送 JSON，其中大数组用 .npy + base64 编码。
-    "seed_field": "seed", // 可选项：服务端接受的 seed 字段名；说明：random_seed 不为 null 时才发送。
+    "seed_field": "seed", // 可选项：服务端接受的 seed 字段名；说明：只有 random_seed_fixed=true 且 random_seed 不为 null 时才发送。
     "color_field": "color", // 可选项：任意字段名；说明：仅 multipart 模式使用；json_npy 模式下彩色字段名在客户端固定为 color_rgb。
     "depth_field": "depth", // 可选项：任意字段名；说明：multipart 模式表示深度 PNG 字段名；json_npy 模式下深度字段名固定为 depth。
     "mask_field": "workspace_mask", // 可选项：任意字段名；说明：workspace mask 字段名，json_npy 和 multipart 都会使用。
@@ -94,12 +95,15 @@
     "close_gripper": 0.0 // 可选项：浮点数；说明：发送给 URP 的闭合夹爪值，首次实机不要急着启用 close。
   },
 
-  "preview": { // 可选项：可保留或按默认值省略部分字段；说明：腕部图像预览和预览图保存。
-    "enabled": true, // 可选项：true/false；说明：是否显示并保存预览图；无 GUI 环境可设为 false。
+  "preview": { // 可选项：可保留或按默认值省略部分字段；说明：只显示腕部视角抓取预览，可把 RGB 抓取叠加图和深度伪彩图左右拼接。
+    "enabled": true, // 可选项：true/false；说明：是否显示并保存腕部预览图；无 GUI 环境可设为 false。
     "window_name": "wrist GraspNet preview", // 可选项：任意字符串；说明：OpenCV 预览窗口名称。
     "scale": 0.75, // 可选项：正浮点数；说明：预览显示缩放比例，只影响显示，不影响 GraspNet 输入。
     "wait_ms": 1, // 可选项：非负整数；说明：OpenCV waitKey 等待时间，单位毫秒。
-    "save_path": "outputs/last_wrist_preview.png" // 可选项：相对项目根目录路径、绝对路径或 null；说明：预览图保存路径，null 表示不保存。
+    "save_path": "outputs/last_wrist_preview.png", // 可选项：相对项目根目录路径、绝对路径或 null；说明：预览图保存路径，null 表示不保存。
+    "show_depth": true, // 可选项：true/false；说明：true 时保存/显示 RGB 抓取叠加图 + 深度伪彩图，false 时只显示腕部 RGB 抓取叠加图。
+    "depth_min_m": 0.0, // 可选项：非负浮点数；说明：深度伪彩显示下限，单位米，只影响预览。
+    "depth_max_m": 1.5 // 可选项：大于 depth_min_m 的浮点数；说明：深度伪彩显示上限，单位米；现场桌面抓取可按观察距离调小以增强对比。
   },
 
   "outputs": { // 可选项：可保留或按默认值省略部分字段；说明：运行结果输出位置。

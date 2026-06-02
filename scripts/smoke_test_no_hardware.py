@@ -22,7 +22,11 @@ from eye_in_hand_graspnet.config import _strip_jsonc_comments, load_T_tcp_cam, l
 from eye_in_hand_graspnet.graspnet_client import GraspNetHttpClient
 from eye_in_hand_graspnet.mask import apply_color_mask, center_rect_bounds, make_center_mask
 from eye_in_hand_graspnet.pipeline import _execute_motion_sequence, _validate_execute_config
-from eye_in_hand_graspnet.preview import build_projected_gripper_segments, project_camera_point_to_pixel
+from eye_in_hand_graspnet.preview import (
+    build_projected_gripper_segments,
+    colorize_depth_for_preview,
+    project_camera_point_to_pixel,
+)
 from eye_in_hand_graspnet.robot import XMLRPCTargetBridge, maybe_set_start_target
 from eye_in_hand_graspnet.transforms import BestGrasp, compute_tcp_target, parse_best_grasp, pose_to_matrix
 from eye_in_hand_graspnet.array_codec import decode_npy
@@ -49,6 +53,10 @@ def main() -> int:
     assert json.loads(_strip_jsonc_comments(jsonc_text))["url"] == "http://127.0.0.1:18080/infer"
 
     config = load_config("configs/eye_in_hand_ur7e_wrist.jsonc")
+    assert config.random_seed_fixed is True
+    assert config.effective_random_seed == 20260531
+    unfixed_seed_config = replace(config, random_seed_fixed=False)
+    assert unfixed_seed_config.effective_random_seed is None
     T_tcp_cam = load_T_tcp_cam(config.calibration)
 
     mask = make_center_mask(1280, 720, config.workspace_mask)
@@ -66,12 +74,22 @@ def main() -> int:
         workspace_mask=mask,
         intrinsics={"K": [[600.0, 0.0, 640.0], [0.0, 600.0, 360.0], [0.0, 0.0, 1.0]]},
         depth_scale_m=0.001,
-        seed=config.random_seed,
+        seed=config.effective_random_seed,
     )
     assert payload["factor_depth"] == 1000.0
     assert payload["top_k"] == config.graspnet.top_k
+    assert payload[config.graspnet.seed_field] == config.effective_random_seed
     assert decode_npy(payload["color_rgb"])[360, 640].tolist() == [200, 200, 200]
     assert decode_npy(payload["workspace_mask"]).shape == (720, 1280)
+    unfixed_payload = client._build_json_npy_payload(
+        color_bgr=masked_color,
+        depth_raw=np.ones((720, 1280), dtype=np.uint16) * 1000,
+        workspace_mask=mask,
+        intrinsics={"K": [[600.0, 0.0, 640.0], [0.0, 600.0, 360.0], [0.0, 0.0, 1.0]]},
+        depth_scale_m=0.001,
+        seed=unfixed_seed_config.effective_random_seed,
+    )
+    assert config.graspnet.seed_field not in unfixed_payload
 
     best_grasp = BestGrasp(
         score=0.9,
@@ -158,6 +176,23 @@ def main() -> int:
     assert project_camera_point_to_pixel(np.array([0.0, 0.0, 1.0]), intrinsic) == (320, 240)
     segments = build_projected_gripper_segments(best_grasp, intrinsic)
     assert {label for _start, _end, label in segments} == {"finger", "palm", "tail", "approach"}
+    try:
+        import cv2
+    except ModuleNotFoundError:
+        cv2 = None
+    if cv2 is not None:
+        depth_preview = colorize_depth_for_preview(
+            cv2,
+            depth_raw=np.ones((720, 1280), dtype=np.uint16) * 1000,
+            depth_scale_m=0.001,
+            mask=mask,
+            depth_min_m=config.preview.depth_min_m,
+            depth_max_m=config.preview.depth_max_m,
+        )
+        assert depth_preview.shape == (720, 1280, 3)
+        assert depth_preview.dtype == np.uint8
+        assert depth_preview[0, 0].tolist() == [0, 0, 0]
+        assert np.any(depth_preview[360, 640] != 0)
 
     parsed = parse_best_grasp(
         {

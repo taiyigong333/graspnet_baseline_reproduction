@@ -112,6 +112,9 @@ class PreviewConfig:
     scale: float = 0.75
     wait_ms: int = 1
     save_path: Path | None = None
+    show_depth: bool = True
+    depth_min_m: float = 0.0
+    depth_max_m: float = 1.5
 
 
 @dataclass(frozen=True)
@@ -122,6 +125,7 @@ class OutputsConfig:
 @dataclass(frozen=True)
 class AppConfig:
     random_seed: int | None
+    random_seed_fixed: bool
     camera: CameraConfig
     workspace_mask: WorkspaceMaskConfig
     calibration: CalibrationConfig
@@ -131,6 +135,12 @@ class AppConfig:
     motion: MotionConfig
     preview: PreviewConfig
     outputs: OutputsConfig
+
+    @property
+    def effective_random_seed(self) -> int | None:
+        if not self.random_seed_fixed or self.random_seed is None:
+            return None
+        return int(self.random_seed)
 
 
 def resolve_path(path_like: str | Path) -> Path:
@@ -199,6 +209,7 @@ def load_config(path: str | Path) -> AppConfig:
     outputs_data = data.get("outputs", {})
     return AppConfig(
         random_seed=data.get("random_seed"),
+        random_seed_fixed=bool(data.get("random_seed_fixed", data.get("random_seed") is not None)),
         camera=CameraConfig(**data["camera"]),
         workspace_mask=WorkspaceMaskConfig(**data.get("workspace_mask", {})),
         calibration=CalibrationConfig(
@@ -215,6 +226,9 @@ def load_config(path: str | Path) -> AppConfig:
             scale=float(preview_data.get("scale", 0.75)),
             wait_ms=int(preview_data.get("wait_ms", 1)),
             save_path=resolve_path(preview_data["save_path"]) if preview_data.get("save_path") else None,
+            show_depth=bool(preview_data.get("show_depth", True)),
+            depth_min_m=float(preview_data.get("depth_min_m", 0.0)),
+            depth_max_m=float(preview_data.get("depth_max_m", 1.5)),
         ),
         outputs=OutputsConfig(
             last_result_path=resolve_path(

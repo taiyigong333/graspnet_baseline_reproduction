@@ -30,7 +30,8 @@ python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.
 
 | 字段 | 类型 | 当前值 | 含义 |
 | --- | --- | --- | --- |
-| `random_seed` | `int` 或 `null` | `20260531` | 设置 numpy 随机种子，并通过 `graspnet.seed_field` 发送给 GraspNet 服务。若服务端使用该 seed，可提高同一输入下的复现实验一致性。 |
+| `random_seed_fixed` | `bool` | `true` | 是否固定随机数种子。`true` 时使用 `random_seed` 设置本地 numpy seed，并通过 `graspnet.seed_field` 发送给 GraspNet 服务；`false` 时不设置本地 seed，也不发送 seed 字段。 |
+| `random_seed` | `int` 或 `null` | `20260531` | `random_seed_fixed=true` 时使用的种子值。若要让服务端完全自行随机，优先把 `random_seed_fixed` 设为 `false`。 |
 | `camera` | `object` | 见下文 | 腕部 RealSense 采集参数。 |
 | `workspace_mask` | `object` | 见下文 | 输入 GraspNet 前的工作区掩码。 |
 | `calibration` | `object` | 见下文 | eye-in-hand 标定矩阵文件位置和矩阵字段名。 |
@@ -38,7 +39,7 @@ python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.
 | `graspnet` | `object` | 见下文 | GraspNet HTTP 推理服务请求参数。 |
 | `grasp` | `object` | 见下文 | GraspNet 输出到 UR TCP 目标位姿的转换策略。 |
 | `motion` | `object` | 见下文 | `--execute` 时的 XML-RPC 目标服务、Dashboard 加载 URP 和动作步骤。 |
-| `preview` | `object` | 见下文 | 腕部图像预览和截图保存。 |
+| `preview` | `object` | 见下文 | 腕部 RGB 抓取叠加图、深度伪彩图和截图保存。 |
 | `outputs` | `object` | 见下文 | 结果 JSON 输出路径。 |
 
 ## 3. `camera`
@@ -131,7 +132,7 @@ T_base_grasp   = T_base_cam_now @ T_cam_grasp
 | `url` | `str` | `"http://127.0.0.1:18080/infer"` | GraspNet 推理服务地址。服务不在本机时改成实际 IP 和端口。 |
 | `timeout_s` | `float` | `30.0` | HTTP 请求超时时间，单位秒。模型推理慢时可增大。 |
 | `request_format` | `str` | `"json_npy"` | 请求格式。可选值是 `json_npy` 或 `multipart`。必须和服务端协议一致。 |
-| `seed_field` | `str` | `"seed"` | seed 字段名。只有 `random_seed` 不为 `null` 时才发送。 |
+| `seed_field` | `str` | `"seed"` | seed 字段名。只有 `random_seed_fixed=true` 且 `random_seed` 不为 `null` 时才发送。 |
 | `mask_field` | `str` | `"workspace_mask"` | workspace mask 字段名。`json_npy` 和 `multipart` 都会使用。 |
 | `factor_depth_field` | `str` | `"factor_depth"` | 深度尺度字段名。发送值为 `1.0 / depth_scale_m`。 |
 | `top_k` | `int` | `50` | 请求服务端返回或筛选的候选数量。是否真正生效取决于服务端实现。 |
@@ -151,7 +152,7 @@ T_base_grasp   = T_base_cam_now @ T_cam_grasp
 | `factor_depth` | `1.0 / depth_scale_m` | 字段名由 `factor_depth_field` 控制。 |
 | `top_k` | `graspnet.top_k` | 字段名固定为 `top_k`。 |
 | `workspace_mask` | 中心矩形掩码 | 字段名由 `mask_field` 控制。 |
-| `seed` | `random_seed` | 字段名由 `seed_field` 控制。 |
+| `seed` | `random_seed` | 字段名由 `seed_field` 控制；只有 `random_seed_fixed=true` 且 `random_seed` 不为 `null` 时发送。 |
 | `extra_fields` 中每一项 | 配置文件 | 原样加入 JSON payload。 |
 
 重要细节：在 `json_npy` 模式下，`color_field`、`depth_field`、`intrinsics_field` 当前不会影响 `color_rgb`、`depth`、`intrinsic_matrix` 这三个字段名。只有服务端接口改了时，才需要同步改客户端代码或切到 `multipart`。
@@ -352,12 +353,16 @@ tcp_pregrasp_translation =
 | `scale` | `float` | `0.75` | 预览显示缩放比例。只影响显示，不影响 GraspNet 输入。 |
 | `wait_ms` | `int` | `1` | OpenCV `waitKey` 等待时间，单位毫秒。 |
 | `save_path` | `str` 或 `null` | `"outputs/last_wrist_preview.png"` | 预览图保存路径。相对路径按项目根目录解析。设为 `null` 可不保存。 |
+| `show_depth` | `bool` | `true` | 是否在腕部 RGB 抓取叠加图右侧拼接深度伪彩图。设为 `false` 时只显示 RGB 抓取叠加图。 |
+| `depth_min_m` | `float` | `0.0` | 深度伪彩显示下限，单位米。只影响预览，不影响采集和 GraspNet 输入。 |
+| `depth_max_m` | `float` | `1.5` | 深度伪彩显示上限，单位米。必须大于 `depth_min_m`；现场距离较近时可调小以增强深度对比。 |
 
 预览图用于人工检查：
 
 - 掩码区域是否覆盖目标。
 - GraspNet 返回中心是否在物体附近。
 - 小夹爪线框投影方向是否明显异常。
+- 深度图中目标区域是否有有效深度，掩码外和 0 深度区域会置黑。
 
 ## 11. `outputs`
 

@@ -24,8 +24,9 @@ from .transforms import compute_tcp_target
 
 
 def run_wrist_grasp_cycle(config: AppConfig, *, execute: bool) -> dict[str, Any]:
-    if config.random_seed is not None:
-        np.random.seed(int(config.random_seed))
+    effective_seed = config.effective_random_seed
+    if effective_seed is not None:
+        np.random.seed(int(effective_seed))
 
     _validate_execute_config(config, execute=execute)
     T_tcp_cam = load_T_tcp_cam(config.calibration)
@@ -70,7 +71,7 @@ def run_wrist_grasp_cycle(config: AppConfig, *, execute: bool) -> dict[str, Any]
             workspace_mask=mask,
             intrinsics=frame.color_intrinsics,
             depth_scale_m=frame.depth_scale_m,
-            seed=config.random_seed,
+            seed=effective_seed,
         )
 
         tcp_now = tcp_reader.read_current_tcp()
@@ -92,6 +93,8 @@ def run_wrist_grasp_cycle(config: AppConfig, *, execute: bool) -> dict[str, Any]
         if config.preview.enabled:
             draw_wrist_preview(
                 color_bgr=preview_color,
+                depth_raw=masked_depth,
+                depth_scale_m=frame.depth_scale_m,
                 mask=mask,
                 best_grasp=grasp_response.best_grasp,
                 intrinsics=frame.color_intrinsics,
@@ -99,6 +102,9 @@ def run_wrist_grasp_cycle(config: AppConfig, *, execute: bool) -> dict[str, Any]
                 scale=config.preview.scale,
                 wait_ms=config.preview.wait_ms,
                 save_path=config.preview.save_path,
+                show_depth=config.preview.show_depth,
+                depth_min_m=config.preview.depth_min_m,
+                depth_max_m=config.preview.depth_max_m,
             )
 
         result = {
@@ -108,6 +114,11 @@ def run_wrist_grasp_cycle(config: AppConfig, *, execute: bool) -> dict[str, Any]
                 "serial": frame.camera_serial,
                 "timestamp_ms": frame.timestamp_ms,
                 "depth_scale_m": frame.depth_scale_m,
+            },
+            "random_seed": {
+                "configured": config.random_seed,
+                "fixed": config.random_seed_fixed,
+                "effective": effective_seed,
             },
             "mask": {
                 "type": config.workspace_mask.type,

@@ -10,6 +10,8 @@ from .transforms import BestGrasp
 def draw_wrist_preview(
     *,
     color_bgr: np.ndarray,
+    depth_raw: np.ndarray,
+    depth_scale_m: float,
     mask: np.ndarray,
     best_grasp: BestGrasp | None,
     intrinsics: dict,
@@ -17,6 +19,9 @@ def draw_wrist_preview(
     scale: float,
     wait_ms: int,
     save_path: Path | None,
+    show_depth: bool = True,
+    depth_min_m: float = 0.0,
+    depth_max_m: float = 1.5,
 ) -> None:
     try:
         import cv2
@@ -40,14 +45,83 @@ def draw_wrist_preview(
                 if 0 <= u < image.shape[1] and 0 <= v < image.shape[0]:
                     draw_grasp_marker(cv2, image, u, v, best_grasp, intrinsic_matrix)
 
+    preview_canvas = _build_preview_canvas(
+        cv2,
+        image,
+        depth_raw,
+        depth_scale_m,
+        mask,
+        show_depth,
+        depth_min_m,
+        depth_max_m,
+    )
     if save_path is not None:
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        cv2.imwrite(str(save_path), image)
+        cv2.imwrite(str(save_path), preview_canvas)
 
+    display = preview_canvas
     if scale != 1.0:
-        image = cv2.resize(image, None, fx=float(scale), fy=float(scale), interpolation=cv2.INTER_AREA)
-    cv2.imshow(window_name, image)
+        display = cv2.resize(display, None, fx=float(scale), fy=float(scale), interpolation=cv2.INTER_AREA)
+    cv2.imshow(window_name, display)
     cv2.waitKey(int(wait_ms))
+
+
+def _build_preview_canvas(
+    cv2,
+    color_overlay_bgr: np.ndarray,
+    depth_raw: np.ndarray,
+    depth_scale_m: float,
+    mask: np.ndarray,
+    show_depth: bool,
+    depth_min_m: float,
+    depth_max_m: float,
+) -> np.ndarray:
+    if not show_depth:
+        return color_overlay_bgr
+
+    depth_bgr = colorize_depth_for_preview(
+        cv2,
+        depth_raw=depth_raw,
+        depth_scale_m=depth_scale_m,
+        mask=mask,
+        depth_min_m=depth_min_m,
+        depth_max_m=depth_max_m,
+    )
+    if depth_bgr.shape[:2] != color_overlay_bgr.shape[:2]:
+        depth_bgr = cv2.resize(
+            depth_bgr,
+            (color_overlay_bgr.shape[1], color_overlay_bgr.shape[0]),
+            interpolation=cv2.INTER_NEAREST,
+        )
+    return np.hstack([color_overlay_bgr, depth_bgr])
+
+
+def colorize_depth_for_preview(
+    cv2,
+    *,
+    depth_raw: np.ndarray,
+    depth_scale_m: float,
+    mask: np.ndarray,
+    depth_min_m: float,
+    depth_max_m: float,
+) -> np.ndarray:
+    if depth_max_m <= depth_min_m:
+        raise ValueError(f"preview.depth_max_m 必须大于 depth_min_m，实际 {depth_min_m}..{depth_max_m}")
+
+    depth = np.asarray(depth_raw, dtype=np.float32) * float(depth_scale_m)
+    clipped = np.clip(depth, float(depth_min_m), float(depth_max_m))
+    normalized = ((clipped - float(depth_min_m)) / (float(depth_max_m) - float(depth_min_m)) * 255.0).astype(np.uint8)
+    colormap = getattr(cv2, "COLORMAP_TURBO", cv2.COLORMAP_JET)
+    depth_bgr = cv2.applyColorMap(normalized, colormap)
+
+    # 0 深度和掩码外区域都不参与抓取判断，预览中置黑能避免伪彩误导。
+    invalid = np.asarray(depth_raw) <= 0
+    if mask.shape == depth_bgr.shape[:2]:
+        invalid = invalid | (mask == 0)
+        x0, y0, x1, y1 = _mask_bbox(mask)
+        cv2.rectangle(depth_bgr, (x0, y0), (x1 - 1, y1 - 1), (0, 255, 255), 2)
+    depth_bgr[invalid] = 0
+    return depth_bgr
 
 
 def _mask_bbox(mask: np.ndarray) -> tuple[int, int, int, int]:

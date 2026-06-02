@@ -67,6 +67,13 @@ python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.
 - `tcp_pregrasp`
 - `tcp_goal`
 
+腕部预览只使用腕部 RealSense 视角。默认窗口和 `outputs/last_wrist_preview.png` 会左右拼接：
+
+- 左侧：腕部 RGB 图，叠加中心掩码框、抓取中心和投影小夹爪线框。
+- 右侧：同一帧的深度伪彩图，掩码外和 0 深度区域置黑。
+
+随机数种子由 `configs/eye_in_hand_ur7e_wrist.jsonc` 顶层字段控制：`random_seed_fixed=true` 时使用 `random_seed` 并发给 GraspNet；设为 `false` 时不设置本地 seed，也不发送 seed 字段。
+
 ## 实机移动
 
 确认目标点位和运动方向正确后，再显式执行：
