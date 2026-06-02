@@ -31,6 +31,8 @@ from eye_in_hand_graspnet.robot import XMLRPCTargetBridge, maybe_set_start_targe
 from eye_in_hand_graspnet.transforms import BestGrasp, compute_tcp_target, parse_best_grasp, pose_to_matrix
 from eye_in_hand_graspnet.array_codec import decode_npy
 
+from preview_wrist_graspnet_realtime import load_realtime_preview_config
+
 
 def call_get_target(url: str) -> list[float]:
     request_body = (
@@ -57,6 +59,13 @@ def main() -> int:
     assert config.effective_random_seed == 20260531
     unfixed_seed_config = replace(config, random_seed_fixed=False)
     assert unfixed_seed_config.effective_random_seed is None
+    realtime_config = load_realtime_preview_config("configs/wrist_graspnet_realtime_preview.jsonc")
+    assert realtime_config.camera.serial == config.camera.serial
+    assert realtime_config.random_seed_fixed is True
+    assert realtime_config.effective_random_seed == config.effective_random_seed
+    assert realtime_config.realtime.infer_every > 0
+    assert realtime_config.realtime.max_frames >= 0
+    assert realtime_config.realtime.save_every >= 0
     T_tcp_cam = load_T_tcp_cam(config.calibration)
 
     mask = make_center_mask(1280, 720, config.workspace_mask)

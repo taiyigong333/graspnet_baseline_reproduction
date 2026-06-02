@@ -1,0 +1,59 @@
+{
+  "random_seed_fixed": true, // 可选项：true/false；说明：是否固定随机数种子；true 时使用 random_seed 并发给 GraspNet，false 时不设置本地 seed，也不发送 seed 字段。
+  "random_seed": 20260531, // 可选项：整数或 null；说明：random_seed_fixed=true 时使用的种子；若希望 GraspNet 服务端自行随机，设 random_seed_fixed=false。
+
+  "camera": { // 可选项：必须保留此对象；说明：实时预览只启动这里指定的腕部 RealSense，不连接机器人。
+    "serial": "419122270341", // 可选项：任意当前电脑可见的 RealSense 序列号；说明：必须是腕部相机，不要填固定相机序列号。
+    "color_width": 1280, // 可选项：RealSense 支持的彩色分辨率宽度；说明：单位像素。
+    "color_height": 720, // 可选项：RealSense 支持的彩色分辨率高度；说明：单位像素。
+    "depth_width": 1280, // 可选项：RealSense 支持的深度分辨率宽度；说明：建议和彩色宽度一致，便于 depth 对齐到 color。
+    "depth_height": 720, // 可选项：RealSense 支持的深度分辨率高度；说明：建议和彩色高度一致。
+    "fps": 30, // 可选项：RealSense 当前模式支持的帧率；说明：单位 Hz。
+    "warmup_frames": 10, // 可选项：0 或正整数；说明：相机启动后丢弃的预热帧数。
+    "timeout_ms": 3000, // 可选项：正整数；说明：等待一帧 RGB-D 的超时时间，单位毫秒。
+    "align_depth_to_color": true // 可选项：true/false；说明：true 表示把 depth 对齐到 color 坐标系；实时预览建议保持 true。
+  },
+
+  "workspace_mask": { // 可选项：必须保留此对象；说明：实时预览和 GraspNet 输入共用的工作区掩码。
+    "type": "center_fraction", // 可选项：当前代码只支持 center_fraction。
+    "width_fraction": 0.5, // 可选项：(0, 1] 的浮点数；说明：保留中心区域宽度占整图宽度的比例。
+    "height_fraction": 0.5, // 可选项：(0, 1] 的浮点数；说明：保留中心区域高度占整图高度的比例。
+    "masked_depth_value": 0, // 可选项：非负整数；说明：掩码外 depth 的填充值。
+    "preview_dim_outside": true // 可选项：true/false；说明：true 表示预览中掩码外区域变暗，false 表示掩码外置黑。
+  },
+
+  "graspnet": { // 可选项：必须保留此对象；说明：实时调用 GraspNet-baseline HTTP 推理服务的请求配置。
+    "url": "http://127.0.0.1:18080/infer", // 可选项：任意可访问的 http/https 推理地址；服务不在本机时改为实际 IP 和端口。
+    "timeout_s": 30.0, // 可选项：正数；说明：HTTP 请求超时时间，单位秒。
+    "request_format": "json_npy", // 可选项：json_npy 或 multipart；说明：必须与服务端协议一致。
+    "seed_field": "seed", // 可选项：服务端接受的 seed 字段名；只有 random_seed_fixed=true 且 random_seed 不为 null 时才发送。
+    "color_field": "color", // 可选项：任意字段名；说明：仅 multipart 模式使用。
+    "depth_field": "depth", // 可选项：任意字段名；说明：multipart 模式表示深度 PNG 字段名。
+    "mask_field": "workspace_mask", // 可选项：任意字段名；说明：workspace mask 字段名。
+    "intrinsics_field": "intrinsics", // 可选项：任意字段名；说明：仅 multipart 模式使用。
+    "factor_depth_field": "factor_depth", // 可选项：任意字段名；说明：深度尺度字段名，发送值为 1.0 / depth_scale_m。
+    "top_k": 50, // 可选项：正整数；说明：请求服务端返回/筛选的候选抓取数量。
+    "extra_fields": { // 可选项：任意 JSON 对象；说明：随请求原样附加的字段。
+      "camera_serial": "419122270341",
+      "mode": "realtime_preview"
+    }
+  },
+
+  "preview": { // 可选项：必须保留此对象；说明：实时窗口和周期截图配置，只影响显示，不影响 GraspNet 输入。
+    "enabled": true, // 可选项：true/false；说明：保留兼容字段，实时预览脚本总是显示窗口。
+    "window_name": "wrist GraspNet realtime preview", // 可选项：任意字符串；说明：OpenCV 预览窗口名称。
+    "scale": 0.75, // 可选项：正浮点数；说明：显示缩放比例，只影响窗口大小。
+    "wait_ms": 1, // 可选项：正整数；说明：OpenCV waitKey 等待时间，单位毫秒。
+    "save_path": "outputs/last_wrist_realtime_preview.png", // 可选项：相对项目根目录路径、绝对路径或 null；说明：save_every>0 时周期保存到这里。
+    "show_depth": true, // 可选项：true/false；说明：true 时显示 RGB 抓取叠加图 + 深度伪彩图，false 时只显示 RGB 抓取叠加图。
+    "depth_min_m": 0.0, // 可选项：非负浮点数；说明：深度伪彩显示下限，单位米。
+    "depth_max_m": 1.5 // 可选项：大于 depth_min_m 的浮点数；说明：深度伪彩显示上限，单位米。
+  },
+
+  "realtime": { // 可选项：必须保留此对象；说明：实时循环控制，不影响主抓取脚本。
+    "infer_every": 1, // 可选项：正整数；说明：每隔多少帧提交一次 GraspNet 推理；推理在后台线程中执行，慢时画面仍刷新。
+    "max_frames": 0, // 可选项：非负整数；说明：最多预览多少帧，0 表示一直运行到按 q/Esc。
+    "save_every": 0, // 可选项：非负整数；说明：每隔多少帧保存一次预览图，0 表示不周期保存。
+    "window_name": "wrist GraspNet realtime preview" // 可选项：字符串或 null；说明：优先使用的实时窗口名。
+  }
+}

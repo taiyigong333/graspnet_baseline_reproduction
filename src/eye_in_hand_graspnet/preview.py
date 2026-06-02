@@ -29,6 +29,42 @@ def draw_wrist_preview(
         print("[preview] 未安装 cv2，跳过预览。")
         return
 
+    preview_canvas = build_wrist_preview_canvas(
+        cv2,
+        color_bgr=color_bgr,
+        depth_raw=depth_raw,
+        depth_scale_m=depth_scale_m,
+        mask=mask,
+        best_grasp=best_grasp,
+        intrinsics=intrinsics,
+        show_depth=show_depth,
+        depth_min_m=depth_min_m,
+        depth_max_m=depth_max_m,
+    )
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(save_path), preview_canvas)
+
+    display = preview_canvas
+    if scale != 1.0:
+        display = cv2.resize(display, None, fx=float(scale), fy=float(scale), interpolation=cv2.INTER_AREA)
+    cv2.imshow(window_name, display)
+    cv2.waitKey(int(wait_ms))
+
+
+def build_wrist_preview_canvas(
+    cv2,
+    *,
+    color_bgr: np.ndarray,
+    depth_raw: np.ndarray,
+    depth_scale_m: float,
+    mask: np.ndarray,
+    best_grasp: BestGrasp | None,
+    intrinsics: dict,
+    show_depth: bool,
+    depth_min_m: float,
+    depth_max_m: float,
+) -> np.ndarray:
     image = color_bgr.copy()
     x0, y0, x1, y1 = _mask_bbox(mask)
     cv2.rectangle(image, (x0, y0), (x1 - 1, y1 - 1), (0, 255, 255), 2)
@@ -45,7 +81,7 @@ def draw_wrist_preview(
                 if 0 <= u < image.shape[1] and 0 <= v < image.shape[0]:
                     draw_grasp_marker(cv2, image, u, v, best_grasp, intrinsic_matrix)
 
-    preview_canvas = _build_preview_canvas(
+    return _build_preview_canvas(
         cv2,
         image,
         depth_raw,
@@ -55,15 +91,6 @@ def draw_wrist_preview(
         depth_min_m,
         depth_max_m,
     )
-    if save_path is not None:
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        cv2.imwrite(str(save_path), preview_canvas)
-
-    display = preview_canvas
-    if scale != 1.0:
-        display = cv2.resize(display, None, fx=float(scale), fy=float(scale), interpolation=cv2.INTER_AREA)
-    cv2.imshow(window_name, display)
-    cv2.waitKey(int(wait_ms))
 
 
 def _build_preview_canvas(

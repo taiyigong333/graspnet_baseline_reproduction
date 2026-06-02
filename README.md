@@ -17,6 +17,7 @@
 configs/
   eye_in_hand_ur7e_wrist.jsonc        # 主配置
   eye_in_hand_calibration_tcp.jsonc   # 本项目内的 T_tcp_cam 快照
+  wrist_graspnet_realtime_preview.jsonc # 实时腕部 GraspNet 预览独立配置
 docs/
   0_项目交接.md
   1_转换graspnet输出的具体过程说明.md
@@ -26,6 +27,7 @@ docs/
   5_腕部相机与固定相机GraspNet矩阵链路和误差分析.md
 scripts/
   run_wrist_grasp_cycle.py           # 主运行入口
+  preview_wrist_graspnet_realtime.py # 实时腕部 GraspNet 结果预览
   smoke_test_no_hardware.py          # 无硬件烟测
 src/eye_in_hand_graspnet/
   camera.py                          # 腕部 RealSense RGB-D 采集
@@ -73,6 +75,22 @@ python scripts\run_wrist_grasp_cycle.py --config configs\eye_in_hand_ur7e_wrist.
 - 右侧：同一帧的深度伪彩图，掩码外和 0 深度区域置黑。
 
 随机数种子由 `configs/eye_in_hand_ur7e_wrist.jsonc` 顶层字段控制：`random_seed_fixed=true` 时使用 `random_seed` 并发给 GraspNet；设为 `false` 时不设置本地 seed，也不发送 seed 字段。
+
+## 实时预览
+
+实时预览使用独立配置，不读取主抓取配置里的机器人、运动或标定字段：
+
+```powershell
+python scripts\preview_wrist_graspnet_realtime.py --config configs\wrist_graspnet_realtime_preview.jsonc
+```
+
+它只连接腕部 RealSense 和 GraspNet HTTP 服务，不连接 RTDE，不计算机器人 TCP，也不执行运动。窗口左侧显示腕部 RGB 抓取叠加图，右侧显示深度伪彩图；后台线程提交 GraspNet 推理，画面持续刷新并叠加最近一次成功推理的小夹爪结果。按 `q` 或 `Esc` 退出。
+
+常用配置项在 `configs\wrist_graspnet_realtime_preview.jsonc`：
+
+- `realtime.infer_every`：每隔多少帧提交一次 GraspNet 推理。
+- `realtime.save_every`：每隔多少帧保存一次预览图，`0` 表示不周期保存。
+- `preview.scale`、`preview.depth_min_m`、`preview.depth_max_m`：只影响显示，不影响采集和 GraspNet 输入。
 
 ## 实机移动
 
